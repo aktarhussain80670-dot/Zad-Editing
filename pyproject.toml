@@ -1,9 +1,14 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "universal-video-editor"
 version = "0.1.0"
 description = "Local, rule-based voiceover-led video editing planner"
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE"]
 dependencies = [
   "numpy>=1.26,<3",
   "opencv-python-headless>=4.9,<5",
@@ -12,6 +17,20 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "ruff>=0.5,<1"]
+
+[tool.setuptools]
+py-modules = ["main"]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ai", "ai.*", "core", "core.*", "config", "config.*", "providers", "providers.*", "services", "services.*", "templates"]
+exclude = ["tests", "tests.*", "storage", "storage.*", "temp", "temp.*", "templates.*", "node_modules", "node_modules.*", ".venv", ".venv.*", "venv", "venv.*", ".github", ".github.*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+config = ["editing_guide.schema.json"]
+templates = ["captions/*.css", "typography/*.css", "transitions/*.css", "motion_graphics/*.css", "sound_design/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

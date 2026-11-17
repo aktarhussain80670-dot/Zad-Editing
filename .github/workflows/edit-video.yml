@@ -32,6 +32,7 @@ jobs:
           hyperframes doctor
       - name: Install Python dependencies
         run: |
+          python -m pip install --upgrade pip setuptools wheel
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements.txt
       - name: Validate repository inputs

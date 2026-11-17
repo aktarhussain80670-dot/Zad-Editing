@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+from importlib.resources import files
 import os
 import re
 import shutil
@@ -150,9 +151,9 @@ class HyperFramesService:
                 )
         layer_markup = "\n".join(video_layers + captions)
         timeline = "".join(gsap_setup)
-        template_root = Path(__file__).resolve().parent.parent / "templates"
+        template_root = files("templates")
         template_css = "\n".join(
-            (template_root / folder / filename).read_text(encoding="utf-8")
+            template_root.joinpath(folder, filename).read_text(encoding="utf-8")
             for folder, filename in (
                 ("transitions", "fade.css"),
                 ("motion_graphics", "motion.css"),
