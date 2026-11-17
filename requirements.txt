@@ -1,0 +1,4 @@
+# Core guide generation uses only the Python standard library.
+numpy>=1.26,<3
+opencv-python-headless>=4.9,<5
+openai-whisper>=20231117

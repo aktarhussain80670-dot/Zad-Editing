@@ -1,0 +1,17 @@
+[project]
+name = "universal-video-editor"
+version = "0.1.0"
+description = "Local, rule-based voiceover-led video editing planner"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "ruff>=0.5,<1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

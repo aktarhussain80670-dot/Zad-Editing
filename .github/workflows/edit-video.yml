@@ -1,0 +1,42 @@
+name: Generate editing guide
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: FedericoCarboni/setup-ffmpeg@v3
+      - run: python -m pip install -r requirements.txt
+      - name: Check required repository inputs
+        run: |
+          test -n "${VOICEOVER_PATH:-}" || { echo 'Set repository variable VOICEOVER_PATH.'; exit 2; }
+          test -f "$VOICEOVER_PATH" || { echo 'Voiceover file not found.'; exit 2; }
+          test -d storage/reference_video || { echo 'Add 3-4 reference videos to storage/reference_video/.'; exit 2; }
+        env:
+          VOICEOVER_PATH: ${{ vars.VOICEOVER_PATH }}
+      - name: Generate editing guide
+        run: |
+          mapfile -t refs < <(printf '%s\n' storage/reference_video/*)
+          args=()
+          for ref in "${refs[@]}"; do args+=(--reference "$ref"); done
+          python main.py --voiceover "$VOICEOVER_PATH" "${args[@]}"
+        env:
+          VOICEOVER_PATH: ${{ vars.VOICEOVER_PATH }}
+          WHISPER_MODEL: ${{ vars.WHISPER_MODEL || 'small' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: editing-guide-and-diagnostics
+          path: storage/editing_guides/
+          if-no-files-found: warn
+          retention-days: 7
