@@ -14,19 +14,20 @@ Pixabay's documented public API offers photo and video search, but does not docu
 
 ## Requirements
 
-- Python 3.11+ and pip, with PyTorch compatible with your hardware (a dependency of local Whisper).
+- Python 3.11+ and pip, with PyTorch 1.13+ compatible with your hardware (required by local Whisper). Optional local OCR uses the `tesseract` executable; without it, reference analysis uses only a low-confidence image-edge caption-region heuristic.
 - FFmpeg and FFprobe on `PATH`.
 - Node.js 22+ and HyperFrames CLI 0.9.59+ (`npm install --global hyperframes@0.9.59`). HyperFrames renders HTML to video with its documented CLI (`hyperframes lint` and `hyperframes render -c ... -o ...`).
 - First local Whisper model use downloads the selected model weights. This is local inference after download; no transcription API is called.
 
-Install Python dependencies:
+For CPU-only Linux, install the CPU PyTorch wheel first; for CUDA or Apple Silicon, use the matching PyTorch install command from pytorch.org. Then install project dependencies:
 
 ```sh
+python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -r requirements.txt
 python -m pip install '.[dev]'
 ```
 
-Copy `.env.example` to `.env` and export/load its values using your shell or a local dotenv loader. The application reads environment variables; it does not automatically parse `.env`.
+Copy `.env.example` to `.env` and export/load its values using your shell or a local dotenv loader. The application reads environment variables; it does not automatically parse `.env`. `WHISPER_MODEL` supports the local model identifiers published by Whisper; the default `small` requires more memory than `tiny` or `base`. `WHISPER_ALLOW_MODEL_DOWNLOAD=false` requires the selected model to already exist under `WHISPER_DOWNLOAD_ROOT`. Before loading, the analyzer checks Python/PyTorch compatibility, device availability, model cache, disk space, and estimated memory, and reports smaller-model guidance when resources are insufficient.
 
 ## Inputs and run
 
@@ -45,7 +46,7 @@ Optional locally supplied music/effects can be added without a provider key (as 
 
 Optional Pexels retrieval uses `PEXELS_API_KEY`; Pixabay media calls use `PIXABAY_API_KEY`. Pexels is for external video only. The configured Pixabay key is not used for audio search because that endpoint is not present in its documented public API. No API key is needed for local algorithms or Whisper.
 
-The default renderer builds original caption/title layouts and word highlighting from Whisper timestamps; style extraction currently has reliable visual statistics but cannot identify exact fonts or decode reference captions. Unsupported observations are marked unknown and use deterministic styling fallbacks. Without Pexels footage, scenes use typography-led graphic backdrops. External media is optional, not required for rendering.
+The default renderer builds original caption/title layouts and word highlighting from Whisper timestamps. Reference analysis uses color histograms, optical-flow magnitude, scene-change candidates, composition centroids, and (when installed) local Tesseract OCR for tentative word boxes. These are heuristics: text can be misread and exact font identification is not attempted. Without Tesseract, OCR text is unknown and edge-density caption-region scores are used. Without Pexels footage, scenes use typography-led graphic backdrops. External media is optional, not required for rendering.
 
 ## Tests and CI
 
@@ -63,14 +64,16 @@ The source code is proprietary. See `LICENSE` for restrictions. HyperFrames itse
 
 - `FFmpeg not found` / `FFprobe not found`: install FFmpeg and ensure both executables are on `PATH`.
 - `HyperFrames CLI is not installed`: install the pinned CLI with npm; Node.js must be >=22. `hyperframes doctor` checks its runtime prerequisites.
-- Whisper import/model/device errors: install Python requirements, ensure PyTorch works on your system, and choose a smaller model or `WHISPER_DEVICE=cpu` when needed.
+- Whisper import/model/device errors: install a Python 3.11-compatible PyTorch wheel and project requirements, ensure FFmpeg/FFprobe are on `PATH`, and choose a smaller model or `WHISPER_DEVICE=cpu` when needed. Model weights are downloaded locally only when absent and allowed.
 - Pexels missing key / rate limit / no results: the footage stage logs a warning and renders a typography fallback.
 - Pixabay audio search: unavailable via documented public API; no undocumented endpoint or scraping fallback is used.
 - Resume after a failure: rerun the same command. Changed input bytes/settings invalidate prior checkpoints.
 
 ## Known limitations
 
-- Typography and caption detection in reference videos is a heuristic region score, not OCR or exact font recognition. Scene-change candidates may also reflect camera movement.
+- Caption OCR requires local Tesseract; when absent, caption-region detection falls back to image edges. Scene-change candidates can still reflect changes other than edits, and exact font identification is not implemented.
 - No Pixabay background music/SFX provider can be implemented against its published public API; these tracks must currently be supplied locally.
-- Pexels search/download and full HyperFrames/FFmpeg end-to-end rendering have not been verified in this sandbox unless specifically reported by the executed checks.
+- No original voiceover or reference videos were present in the input folders during the latest verification. A genuine voiceover-to-video end-to-end run therefore remains unverified.
+- Local Whisper/PyTorch imports and the `tiny.en` model load were verified in an isolated environment, but inference was blocked by low available memory (about 0.25 GiB after imports versus the analyzer's 0.8 GiB tiny-model estimate). A previous controlled test render used generated patterns and tone audio, not user voice media.
+- Pexels requests were mocked because no runtime API key was configured; GitHub Actions workflows were parsed but not executed.
 - Automatic local model download may require network access and substantial disk, RAM and CPU/GPU resources.

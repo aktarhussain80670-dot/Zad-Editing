@@ -10,7 +10,15 @@ from typing import Any
 def extract_style(analyses: list[dict[str, Any]]) -> dict[str, Any]:
     if not analyses:
         raise ValueError("At least one reference analysis is required")
-    keys = ("brightness", "contrast", "saturation", "cut_rate", "motion", "caption_region_score")
+    keys = (
+        "brightness",
+        "contrast",
+        "saturation",
+        "cut_rate",
+        "motion",
+        "frame_difference",
+        "caption_region_score",
+    )
     metrics: dict[str, Any] = {}
     for key in keys:
         values = [float(item[key]) for item in analyses if isinstance(item.get(key), (int, float))]
@@ -38,22 +46,53 @@ def extract_style(analyses: list[dict[str, Any]]) -> dict[str, Any]:
             "transition": transition[0] if transition[1] > len(analyses) / 2 else "unknown",
             "caption": caption[0] if caption[1] > len(analyses) / 2 else "unknown",
         },
-        "similarity_scores": [
-            round(
-                1
-                / (
-                    1
-                    + sum(
-                        abs(float(a.get(k, 0)) - float(b.get(k, 0)))
-                        for k in ("brightness", "contrast", "saturation", "cut_rate", "motion")
-                        if isinstance(a.get(k), (int, float)) and isinstance(b.get(k), (int, float))
-                    )
+        "composition_centroid": {
+            axis: round(
+                median(
+                    float(item["composition_centroid"][axis])
+                    for item in analyses
+                    if isinstance((item.get("composition_centroid") or {}).get(axis), (int, float))
                 ),
                 4,
             )
-            for a in analyses
-            for b in analyses
+            if any(isinstance((item.get("composition_centroid") or {}).get(axis), (int, float)) for item in analyses)
+            else None
+            for axis in ("x", "y")
+        },
+        "dominant_hues_degrees": [
+            int(hue)
+            for hue, count in Counter(
+                hue for item in analyses for hue in item.get("dominant_hues_degrees", [])
+            ).most_common(3)
+            if count >= max(1, len(analyses) // 2)
         ],
+        "ocr_text_examples": list(
+            dict.fromkeys(
+                str(region["text"])
+                for item in analyses
+                for region in item.get("text_regions", [])
+                if region.get("text")
+            )
+        )[:30],
+        "similarity_scores": _similarity_scores(analyses),
         "observations": [item.get("observations", []) for item in analyses],
         "confidence": round(min(1.0, len(analyses) / 4), 2),
     }
+
+
+def _similarity_scores(analyses: list[dict[str, Any]]) -> list[float]:
+    features = ("brightness", "contrast", "saturation", "cut_rate", "motion", "frame_difference")
+    ranges = {}
+    for key in features:
+        values = [float(item[key]) for item in analyses if isinstance(item.get(key), (int, float))]
+        ranges[key] = max(max(values) - min(values), 0.1) if values else 1.0
+    scores = []
+    for left in analyses:
+        for right in analyses:
+            distances = [
+                abs(float(left[key]) - float(right[key])) / ranges[key]
+                for key in features
+                if isinstance(left.get(key), (int, float)) and isinstance(right.get(key), (int, float))
+            ]
+            scores.append(round(1 / (1 + (sum(distances) / len(distances) if distances else 0)), 4))
+    return scores

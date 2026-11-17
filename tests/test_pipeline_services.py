@@ -37,8 +37,27 @@ def test_local_whisper_transcript_keeps_original_words_and_audio_duration(
                 ],
             }
 
-    local_whisper = SimpleNamespace(load_audio=lambda path: audio, load_model=lambda name, device: Model())
+    local_whisper = SimpleNamespace(
+        _MODELS={"small": "https://example.invalid/models/small.pt"},
+        load_audio=lambda path: audio,
+        load_model=lambda name, device, download_root: Model(),
+    )
     monkeypatch.setitem(sys.modules, "whisper", local_whisper)
+    monkeypatch.setitem(
+        sys.modules,
+        "torch",
+        SimpleNamespace(
+            __version__="2.2.0",
+            cuda=SimpleNamespace(is_available=lambda: False),
+            backends=SimpleNamespace(mps=SimpleNamespace(is_available=lambda: False)),
+        ),
+    )
+    monkeypatch.setattr("ai.voiceover_analyzer.shutil.which", lambda name: "/bin/ffmpeg")
+    monkeypatch.setattr(
+        "ai.voiceover_analyzer.FFprobeService",
+        lambda: SimpleNamespace(probe=lambda path: {"has_audio": True, "duration": len(audio) / 16000}),
+    )
+    monkeypatch.setattr(VoiceoverAnalyzer, "_available_memory_bytes", staticmethod(lambda: 8 * 1024**3))
     transcript = VoiceoverAnalyzer().analyze(voice)
     assert transcript["text"] == "original words"
     assert transcript["duration"] == 2

@@ -75,7 +75,11 @@ def run_pipeline(
         if "transcript" not in state:
             logger.info("Transcribing original voiceover with local Whisper")
             state["transcript"] = VoiceoverAnalyzer(
-                config.whisper_model, config.whisper_language, config.whisper_device
+                config.whisper_model,
+                config.whisper_language,
+                config.whisper_device,
+                config.whisper_download_root,
+                config.whisper_allow_model_download,
             ).analyze(voiceover)
             if not config.video_min_duration <= float(state["transcript"]["duration"]) <= config.video_max_duration:
                 raise ValueError("Voiceover duration is outside configured VIDEO_MIN_DURATION / VIDEO_MAX_DURATION")

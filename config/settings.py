@@ -22,6 +22,8 @@ class Settings:
     whisper_model: str = "small"
     whisper_language: str = "auto"
     whisper_device: str = "auto"
+    whisper_download_root: Path = Path.home() / ".cache" / "whisper"
+    whisper_allow_model_download: bool = True
     pixabay_api_key: str = ""
     pexels_api_key: str = ""
     video_width: int = 1080
