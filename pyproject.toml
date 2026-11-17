@@ -4,6 +4,11 @@ version = "0.1.0"
 description = "Local, rule-based voiceover-led video editing planner"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
+dependencies = [
+  "numpy>=1.26,<3",
+  "opencv-python-headless>=4.9,<5",
+  "openai-whisper>=20231117",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "ruff>=0.5,<1"]

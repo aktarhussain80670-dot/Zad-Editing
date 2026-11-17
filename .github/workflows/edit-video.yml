@@ -1,4 +1,4 @@
-name: Generate editing guide
+name: Render Universal Video Editor
 
 on:
   workflow_dispatch:
@@ -8,35 +8,60 @@ permissions:
   actions: write
 
 jobs:
-  plan:
+  render:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - uses: FedericoCarboni/setup-ffmpeg@v3
-      - run: python -m pip install -r requirements.txt
-      - name: Check required repository inputs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install FFmpeg and HyperFrames
+        env:
+          HYPERFRAMES_NO_UPDATE_CHECK: "1"
+          HYPERFRAMES_NO_TELEMETRY: "1"
+          HYPERFRAMES_SKIP_SKILLS: "1"
+          DO_NOT_TRACK: "1"
         run: |
-          test -n "${VOICEOVER_PATH:-}" || { echo 'Set repository variable VOICEOVER_PATH.'; exit 2; }
-          test -f "$VOICEOVER_PATH" || { echo 'Voiceover file not found.'; exit 2; }
-          test -d storage/reference_video || { echo 'Add 3-4 reference videos to storage/reference_video/.'; exit 2; }
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+          npm install --global hyperframes@0.9.59
+          hyperframes doctor
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Validate repository inputs
         env:
           VOICEOVER_PATH: ${{ vars.VOICEOVER_PATH }}
-      - name: Generate editing guide
         run: |
-          mapfile -t refs < <(printf '%s\n' storage/reference_video/*)
-          args=()
-          for ref in "${refs[@]}"; do args+=(--reference "$ref"); done
-          python main.py --voiceover "$VOICEOVER_PATH" "${args[@]}"
+          test -n "$VOICEOVER_PATH" || { echo 'Set the repository variable VOICEOVER_PATH to a committed or checked-out voiceover path.'; exit 2; }
+          test -f "$VOICEOVER_PATH" || { echo 'VOICEOVER_PATH does not exist.'; exit 2; }
+          mapfile -t refs < <(printf '%s\n' storage/reference_video/* | while read -r f; do test -f "$f" && printf '%s\n' "$f"; done)
+          test "${#refs[@]}" -ge 3 && test "${#refs[@]}" -le 4 || { echo 'Place 3 or 4 reference videos in storage/reference_video/.'; exit 2; }
+      - name: Run editing and rendering pipeline
         env:
           VOICEOVER_PATH: ${{ vars.VOICEOVER_PATH }}
           WHISPER_MODEL: ${{ vars.WHISPER_MODEL || 'small' }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+          HYPERFRAMES_NO_UPDATE_CHECK: "1"
+          HYPERFRAMES_NO_TELEMETRY: "1"
+          HYPERFRAMES_SKIP_SKILLS: "1"
+          DO_NOT_TRACK: "1"
+        run: |
+          mapfile -t refs < <(printf '%s\n' storage/reference_video/* | while read -r f; do test -f "$f" && printf '%s\n' "$f"; done)
+          args=()
+          for ref in "${refs[@]}"; do args+=(--reference "$ref"); done
+          python main.py --voiceover "$VOICEOVER_PATH" "${args[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: editing-guide-and-diagnostics
-          path: storage/editing_guides/
+          name: video-edit-output
+          path: |
+            storage/final_video/
+            storage/editing_guides/
+            storage/metadata/
           if-no-files-found: warn
           retention-days: 7

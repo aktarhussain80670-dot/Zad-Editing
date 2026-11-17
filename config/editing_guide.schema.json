@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:universal-video-editor:editing-guide:v1",
+  "title": "Universal Video Editor guide",
+  "type": "object",
+  "required": ["schema_version", "duration", "transcript", "style", "scenes"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "duration": {"type": "number", "exclusiveMinimum": 0},
+    "transcript": {
+      "type": "object",
+      "required": ["duration", "text", "segments"],
+      "properties": {
+        "duration": {"type": "number", "exclusiveMinimum": 0},
+        "text": {"type": "string"},
+        "segments": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["start", "end", "text"], "properties": {"start": {"type": "number", "minimum": 0}, "end": {"type": "number", "exclusiveMinimum": 0}, "text": {"type": "string"}, "words": {"type": "array"}}}}
+      }
+    },
+    "style": {"type": "object"},
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["scene_id", "start", "end", "transcript", "visual_idea", "visual_required", "visual_search_query", "external_media", "caption", "typography", "motion", "transition", "sound_effect", "audio"],
+        "properties": {
+          "scene_id": {"type": "integer", "minimum": 1},
+          "start": {"type": "number", "minimum": 0},
+          "end": {"type": "number", "exclusiveMinimum": 0},
+          "transcript": {"type": "string"},
+          "visual_idea": {"type": "string"},
+          "visual_required": {"type": "boolean"},
+          "visual_search_query": {"type": "string"},
+          "external_media": {"type": "object", "required": ["required", "query"], "properties": {"required": {"type": "boolean"}, "query": {"type": "string"}}},
+          "caption": {"type": "object", "required": ["enabled", "text", "animation"], "properties": {"enabled": {"type": "boolean"}, "text": {"type": "string"}, "animation": {"type": "string"}}},
+          "typography": {"type": "object"},
+          "motion": {"type": "object", "required": ["type"], "properties": {"type": {"type": "string"}}},
+          "transition": {"type": "object", "required": ["type"], "properties": {"type": {"type": "string"}}},
+          "sound_effect": {"type": "object", "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}},
+          "audio": {"type": "object", "required": ["music_enabled", "sound_effect_enabled"], "properties": {"music_enabled": {"type": "boolean"}, "sound_effect_enabled": {"type": "boolean"}}}
+        }
+      }
+    }
+  }
+}

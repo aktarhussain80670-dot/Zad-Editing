@@ -44,6 +44,13 @@ class Settings:
     audio_normalization: bool = True
     audio_target_lufs: float = -14.0
     audio_true_peak: float = -1.0
+    audio_fade_seconds: float = 0.35
+    music_volume: float = 0.12
+    sound_effect_volume: float = 0.25
+    media_timeout_seconds: int = 30
+    max_download_bytes: int = 250_000_000
+    max_input_bytes: int = 2_000_000_000
+    hyperframes_command: str = "hyperframes"
     delete_temp_files: bool = True
     delete_processed_voiceover: bool = False
     preserve_reference_videos: bool = True
@@ -53,7 +60,7 @@ class Settings:
     max_references: int = 4
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         defaults = cls()
         values: dict[str, object] = {}
         for key in defaults.__dataclass_fields__:
@@ -77,14 +84,34 @@ class Settings:
         return settings
 
     def validate(self) -> None:
-        if self.video_width < 16 or self.video_height < 16 or self.video_fps <= 0:
-            raise ValueError("Video dimensions and FPS must be positive and usable")
+        if (
+            self.video_width < 16
+            or self.video_height < 16
+            or self.video_width % 2
+            or self.video_height % 2
+            or not 1 <= self.video_fps <= 240
+        ):
+            raise ValueError("Video dimensions must be even and usable; FPS must be between 1 and 240")
         if not 0 <= self.video_crf <= 51:
             raise ValueError("VIDEO_CRF must be between 0 and 51")
         if self.video_min_duration <= 0 or self.video_max_duration < self.video_min_duration:
             raise ValueError("Video duration limits are invalid")
+        if self.output_format.lower() != "mp4":
+            raise ValueError("Only MP4 is currently supported by the final renderer")
+        if not self.video_codec or not self.video_preset or not self.video_pixel_format:
+            raise ValueError("Video codec, preset, and pixel format cannot be empty")
         if self.min_references < 1 or self.max_references < self.min_references:
             raise ValueError("Reference video count limits are invalid")
+        if not 0 <= self.music_volume <= 1 or not 0 <= self.sound_effect_volume <= 1:
+            raise ValueError("Audio layer volumes must be between 0 and 1")
+        if self.audio_fade_seconds < 0:
+            raise ValueError("AUDIO_FADE_SECONDS cannot be negative")
+        if not isinstance(self.audio_target_lufs, (int, float)) or not -70 <= self.audio_target_lufs <= 0:
+            raise ValueError("AUDIO_TARGET_LUFS must be between -70 and 0")
+        if not isinstance(self.audio_true_peak, (int, float)) or not -9 <= self.audio_true_peak <= 0:
+            raise ValueError("AUDIO_TRUE_PEAK must be between -9 and 0")
+        if self.media_timeout_seconds < 1 or self.max_download_bytes < 1 or self.max_input_bytes < 1:
+            raise ValueError("Media timeout and download limit must be positive")
 
     @property
     def use_sound_effects(self) -> bool:

@@ -103,6 +103,25 @@ $RECYCLE.BIN/
 *.log
 *.cache
 .cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.hyperframes/
+
+# Video editor user media and generated outputs
+storage/voiceover/*
+!storage/voiceover/.gitkeep
+storage/reference_video/*
+!storage/reference_video/.gitkeep
+storage/final_video/*
+!storage/final_video/.gitkeep
+storage/editing_guides/*
+!storage/editing_guides/.gitkeep
+storage/metadata/*
+!storage/metadata/.gitkeep
+temp/*
+!temp/.gitkeep
 
 # monorepo
 .turbo
