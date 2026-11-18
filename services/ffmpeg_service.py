@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import shutil
 import subprocess
 from collections.abc import Sequence
@@ -35,20 +36,59 @@ class FFmpegService:
         return destination
 
     def run(self, arguments: Sequence[str], timeout: int | None = None) -> subprocess.CompletedProcess[str]:
-        command = [self.ensure_available(), "-hide_banner", "-nostdin", *map(str, arguments)]
+        if isinstance(arguments, (str, bytes)) or not isinstance(arguments, Sequence):
+            raise TypeError("FFmpeg arguments must be a sequence of strings")
+
+        if any(not isinstance(argument, str) or "\\x00" in argument for argument in arguments):
+            raise ValueError("FFmpeg arguments must contain valid strings without NUL characters")
+
+        effective_timeout = self.timeout if timeout is None else timeout
+
+        if (
+            isinstance(effective_timeout, bool)
+            or not isinstance(effective_timeout, (int, float))
+            or not math.isfinite(effective_timeout)
+            or effective_timeout <= 0
+        ):
+            raise ValueError("FFmpeg timeout must be a positive number")
+
+        command = [self.ensure_available(), "-hide_banner", "-nostdin", *arguments]
+
         try:
             result = subprocess.run(
-                command, capture_output=True, text=True, timeout=timeout or self.timeout, check=False
+                command,
+                capture_output=True,
+                text=True,
+                timeout=effective_timeout,
+                check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise MediaToolError(f"FFmpeg timed out after {exc.timeout} seconds") from exc
+            raise MediaToolError(
+                f"FFmpeg timed out after {exc.timeout} seconds"
+            ) from exc
+        except OSError as exc:
+            raise MediaToolError(f"Could not execute FFmpeg: {exc}") from exc
+
         if result.returncode:
-            raise MediaToolError(f"FFmpeg exited with code {result.returncode}: {result.stderr[-4000:].strip()}")
+            raise MediaToolError(
+                f"FFmpeg exited with code {result.returncode}: "
+                f"{result.stderr[-4000:].strip()}"
+            )
+
         return result
 
     def trim(self, source: Path, destination: Path, start: float, duration: float) -> Path:
-        if start < 0 or duration <= 0:
-            raise ValueError("Trim start must be non-negative and duration positive")
+        if (
+            isinstance(start, bool)
+            or not isinstance(start, (int, float))
+            or not math.isfinite(start)
+            or start < 0
+            or isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration <= 0
+        ):
+            raise ValueError("Trim start and duration must be finite valid numbers")
         self._destination(destination)
         self.run(
             [
@@ -69,8 +109,13 @@ class FFmpegService:
         return self._verify_output(destination)
 
     def scale(self, source: Path, destination: Path, width: int, height: int, fps: int) -> Path:
-        if width < 2 or height < 2 or fps <= 0:
-            raise ValueError("Invalid output dimensions or frame rate")
+        if (
+            any(isinstance(value, bool) or not isinstance(value, int) for value in (width, height, fps))
+            or width < 2
+            or height < 2
+            or fps <= 0
+        ):
+            raise ValueError("Output dimensions and frame rate must be positive integers")
         self._destination(destination)
         self.run(
             [
@@ -113,8 +158,14 @@ class FFmpegService:
     def prepare_scene(
         self, source: Path, destination: Path, duration: float, width: int, height: int, fps: int
     ) -> Path:
-        if duration <= 0 or not source.is_file():
-            raise ValueError("Scene clip must exist and have positive duration")
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration <= 0
+            or not source.is_file()
+        ):
+            raise ValueError("Scene clip must exist and have a finite positive duration")
         self._destination(destination)
         video_filter = (
             f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1,fps={fps}"

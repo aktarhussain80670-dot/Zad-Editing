@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <!-- Dark Terminal Background Gradient -->
+    <linearGradient id="term-bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#282C34" />
+      <stop offset="100%" stop-color="#121417" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Square Background (Radius: 32px) -->
+  <rect width="128" height="128" rx="32" fill="url(#term-bg)" />
+
+  <!-- Subtle Inner Border -->
+  <rect x="1" y="1" width="126" height="126" rx="31" stroke="#FFFFFF" stroke-opacity="0.1" stroke-width="2" />
+
+  <!-- Terminal Prompt Symbol ( >_ ) -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- Greater-Than Arrow ( > ) -->
+    <path d="M 34 44 L 58 64 L 34 84" stroke="#FFFFFF" stroke-width="10" />
+
+    <!-- Underscore Cursor ( _ ) in Terminal Green -->
+    <line x1="66" y1="84" x2="94" y2="84" stroke="#FFFFFF" stroke-width="10" />
+  </g>
+</svg>

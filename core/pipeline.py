@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 from pathlib import Path
 from typing import Any
@@ -16,14 +17,12 @@ from core.checkpoint_manager import CheckpointManager
 from core.cleanup_manager import CleanupManager
 from core.feature_controller import enabled_features
 from core.input_manager import validate_inputs
-from core.media_selector import MediaSelector
-from providers.http import ProviderError
+from services.audio_analysis_service import AudioAnalysisService
 from services.ffmpeg_service import MediaToolError
 from services.ffprobe_service import FFprobeService
 from services.hyperframes_service import HyperFramesService
-from services.media_download_service import MediaDownloadService
-from services.media_search_service import MediaSearchService
 from services.reference_video_service import ReferenceVideoService
+from services.transliteration_service import TransliterationService
 from services.video_renderer import VideoRenderer
 
 logger = logging.getLogger(__name__)
@@ -46,8 +45,16 @@ def run_pipeline(
         raise ValueError(f"Optional background music was not found: {music}")
     if config.enable_sound_effects:
         for effect_path, timestamp in sound_effects or []:
-            if not effect_path.is_file() or timestamp < 0:
-                raise ValueError(f"Optional sound effect is missing or has an invalid timestamp: {effect_path}")
+            valid_timestamp = (
+                isinstance(timestamp, (int, float))
+                and not isinstance(timestamp, bool)
+                and math.isfinite(timestamp)
+                and timestamp >= 0
+            )
+            if not effect_path.is_file() or not valid_timestamp:
+                raise ValueError(
+                    f"Optional sound effect is missing or has an invalid timestamp: {effect_path}"
+                )
     optional_audio = []
     if config.enable_background_music and music is not None:
         optional_audio.append(music)
@@ -56,6 +63,7 @@ def run_pipeline(
     fingerprint = CheckpointManager().fingerprint(
         [voiceover, *references, *optional_audio],
         {
+            "pipeline_version": 3,
             "settings": config,
             "guide_path": str(guide_path.resolve()),
             "sound_effects": [(str(path.resolve()), timestamp) for path, timestamp in sound_effects or []],
@@ -84,10 +92,39 @@ def run_pipeline(
             if not config.video_min_duration <= float(state["transcript"]["duration"]) <= config.video_max_duration:
                 raise ValueError("Voiceover duration is outside configured VIDEO_MIN_DURATION / VIDEO_MAX_DURATION")
             checkpoint.save(fingerprint, "transcription", generated, data=state)
+
+        if "audio_analysis" not in state:
+            logger.info("Analyzing original voiceover audio characteristics")
+            state["audio_analysis"] = AudioAnalysisService().analyze(
+                voiceover,
+                state["transcript"],
+            )
+            checkpoint.save(fingerprint, "audio_analysis", generated, data=state)
+
         if "guide" not in state:
             state["style"] = extract_style(state["reference_analyses"])
-            state["scenes"] = direct(state["transcript"], state["style"], enabled_features(config))
-            state["guide"] = generate_guide(state["transcript"], state["style"], state["scenes"], guide_path)
+            state["scenes"] = direct(
+                state["transcript"],
+                state["style"],
+                enabled_features(config),
+                audio_analysis=state["audio_analysis"],
+            )
+            transliteration = TransliterationService()
+            caption_transcript = transliteration.prepare(
+                state["transcript"],
+                config,
+            )
+            state["caption_scenes"] = transliteration.apply_to_scenes(
+                caption_transcript,
+                state["scenes"],
+            )
+            state["guide"] = generate_guide(
+                caption_transcript,
+                state["style"],
+                state["caption_scenes"],
+                guide_path,
+                audio_analysis=state["audio_analysis"],
+            )
             generated.append(guide_path)
             checkpoint.save(fingerprint, "guide", generated, data=state)
         guide = state["guide"]
@@ -98,35 +135,22 @@ def run_pipeline(
         if last_stage == "rendered" and final_path.is_file():
             try:
                 FFprobeService().validate(
-                    final_path, require_video=True, require_audio=True, expected_duration=float(guide["duration"])
+                    final_path,
+                    require_video=True,
+                    require_audio=True,
+                    expected_duration=float(guide["duration"]),
+                    expected_fps=config.video_fps,
                 )
                 return guide
             except (MediaToolError, ValueError, OSError) as exc:
                 logger.warning("Ignoring invalid cached render and rerendering: %s", exc)
-        assets: dict[int, Path] = {}
-        metadata_dir = Path("storage/metadata/provider_assets")
-        media_search = MediaSearchService(config)
-        downloader = MediaDownloadService(config.media_timeout_seconds, config.max_download_bytes)
-        for scene in MediaSelector(config).scenes_requiring_clips(guide):
-            try:
-                candidates = media_search.search_scene(scene)
-                if candidates:
-                    assets[int(scene["scene_id"])] = downloader.download(
-                        candidates[0], run_temp / "media", metadata_dir
-                    )
-            except (ProviderError, MediaToolError, ValueError, OSError, TimeoutError) as exc:
-                logger.warning("Optional visual media skipped for scene %s: %s", scene.get("scene_id"), exc)
-        renderer = VideoRenderer(hyperframes=HyperFramesService(config.hyperframes_command))
-        if config.enable_background_music and music is None and config.pixabay_api_key:
-            logger.warning("Pixabay's documented public API does not support background music search; no bed was added")
-        if config.enable_sound_effects and not sound_effects and config.pixabay_api_key:
-            logger.warning(
-                "Pixabay's documented public API does not support sound-effect search; no effects were added"
-            )
+        # External clips and images are permanently disabled.
+        renderer = VideoRenderer(
+            hyperframes=HyperFramesService(config.hyperframes_command)
+        )
         renderer.render(
             guide,
             voiceover,
-            assets,
             final_path,
             config,
             music=music,

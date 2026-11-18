@@ -134,3 +134,14 @@ temp/*
 .ideavo/project
 # next-agents-md
 .next-docs/
+
+# Local backup files - never upload to GitHub
+*.bak
+*.backup
+*.backup.*
+*.orig
+*.rej
+*~
+
+# Numbered backup files
+*.bak*

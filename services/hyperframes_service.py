@@ -8,10 +8,14 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
 from services.ffmpeg_service import MediaToolError
+from services.motion_graphics_service import MotionGraphicsService
+from services.font_manager import FontManager
 
 
 class HyperFramesService:
@@ -62,6 +66,88 @@ class HyperFramesService:
             raise MediaToolError(f"HyperFrames >=0.9.59 is required; installed version is {match.group(0)}")
         return result.stdout.strip()
 
+
+    @staticmethod
+    def _package_icons(
+        guide: dict[str, Any],
+        composition_directory: Path,
+    ) -> None:
+        source_root = Path.cwd().resolve() / "assets" / "icons"
+        destination_root = composition_directory / "assets" / "icons"
+        selected = set()
+
+        for scene in guide.get("scenes", []):
+            if not isinstance(scene, dict):
+                continue
+
+            icon = scene.get("icon")
+            if not isinstance(icon, dict):
+                continue
+
+            filename = icon.get("filename")
+            if not isinstance(filename, str):
+                continue
+
+            if (
+                Path(filename).name != filename
+                or not re.fullmatch(r"[A-Za-z0-9_.-]+\.svg", filename, re.I)
+            ):
+                raise ValueError(f"Invalid SVG filename: {filename}")
+
+            selected.add(filename)
+
+        for filename in sorted(selected):
+            source_file = source_root / filename
+
+            if not source_file.is_file() or source_file.is_symlink():
+                raise FileNotFoundError(f"Selected SVG not found: {filename}")
+
+            try:
+                root = ET.parse(source_file).getroot()
+            except ET.ParseError as exc:
+                raise ValueError(f"Invalid SVG XML: {filename}") from exc
+
+            if root.tag.split("}")[-1].lower() != "svg":
+                raise ValueError(f"Not an SVG document: {filename}")
+
+            for element in root.iter():
+                tag = element.tag.split("}")[-1].lower()
+
+                if tag in {"script", "foreignobject"}:
+                    raise ValueError(f"Unsafe SVG element: {filename}")
+
+                for key, value in element.attrib.items():
+                    attribute = key.split("}")[-1].lower()
+                    value = value.strip()
+
+                    if attribute.startswith("on"):
+                        raise ValueError(f"SVG event handler rejected: {filename}")
+
+                    if attribute in {"href", "src"} and re.match(
+                        r"^(https?:|file:|data:|javascript:)",
+                        value,
+                        re.I,
+                    ):
+                        raise ValueError(f"External SVG reference rejected: {filename}")
+
+                    if re.search(
+                        r"url\(\s*['\"]?(?:https?:|file:|data:|javascript:)",
+                        value,
+                        re.I,
+                    ):
+                        raise ValueError(f"External SVG resource rejected: {filename}")
+
+            destination_root.mkdir(parents=True, exist_ok=True)
+            destination = destination_root / filename
+
+            if destination.exists():
+                if destination.read_bytes() != source_file.read_bytes():
+                    raise FileExistsError(
+                        f"Composition icon conflict: {filename}"
+                    )
+            else:
+                shutil.copy2(source_file, destination)
+
     def _composition_html(
         self,
         guide: dict[str, Any],
@@ -72,6 +158,46 @@ class HyperFramesService:
         composition_directory: Path = Path("."),
     ) -> str:
         duration = float(guide["duration"])
+        if assets:
+            raise ValueError("External video assets are disabled; HyperFrames accepts generated graphics only.")
+        graphics_service = MotionGraphicsService()
+        self._package_icons(guide, composition_directory)
+
+        font_manager = FontManager(Path.cwd())
+        font_catalog = {
+            item["filename"]: item
+            for item in font_manager.discover()
+        }
+
+        selected_metadata = next(
+            (
+                scene.get("font_selection")
+                for scene in guide.get("scenes", [])
+                if isinstance(scene, dict)
+                and isinstance(scene.get("font_selection"), dict)
+            ),
+            None,
+        )
+
+        selected_fonts = None
+        if selected_metadata:
+            selected_fonts = {}
+            for role, metadata in selected_metadata.items():
+                if not isinstance(metadata, dict):
+                    raise ValueError(f"Invalid font selection: {role}")
+
+                filename = metadata.get("filename")
+                if filename not in font_catalog:
+                    raise FileNotFoundError(
+                        f"Selected font not found: {filename}"
+                    )
+
+                selected_fonts[role] = font_catalog[filename]
+
+        font_css = font_manager.prepare(
+            composition_directory,
+            selections=selected_fonts,
+        )
         video_layers: list[str] = []
         captions: list[str] = []
         gsap_setup: list[str] = []
@@ -97,7 +223,7 @@ class HyperFramesService:
                         f' tl.fromTo("#{video_id}", {{scale:1}}, {{scale:1.06, duration:{length}, ease:"none"}}, {start});'
                     )
             caption = scene.get("caption", {})
-            text = str(caption.get("text", "")).strip()
+            text = str(caption.get("display_text", caption.get("text", ""))).strip()
             if caption.get("enabled") and text:
                 words = [
                     word
@@ -108,7 +234,7 @@ class HyperFramesService:
                 ]
                 if words:
                     word_markup = " ".join(
-                        f'<span class="caption-word" id="word-{sid}-{i}">{html.escape(str(word["word"]).strip())}</span>'
+                        f'<span class="caption-word" id="word-{sid}-{i}">{html.escape(str(word.get("display_word", word.get("word", ""))).strip())}</span>'
                         for i, word in enumerate(words)
                     )
                 else:
@@ -125,30 +251,27 @@ class HyperFramesService:
                     gsap_setup.append(
                         f' tl.to("#word-{sid}-{i}", {{color:"#ffc36d", scale:1.08, duration:0.08, transformOrigin:"center center"}}, {word_start}); tl.to("#word-{sid}-{i}", {{color:"#ffffff", scale:1, duration:0.08}}, {max(word_start, word_end)});'
                     )
-            idea = html.escape(str(scene.get("visual_idea", "")))
-            title = html.escape(str(scene.get("transcript", "")))
-            if not assets.get(sid) or not assets[sid].is_file():
-                fallback_id = f"fallback-{sid}"
-                video_layers.append(
-                    f'<div class="fallback clip" id="{fallback_id}" data-start="{start}" data-duration="{length}" data-track-index="{sid}">{idea} - {title}</div>'
-                )
-                if scene.get("motion", {}).get("enabled", True):
-                    gsap_setup.append(
-                        f' tl.fromTo("#{fallback_id}", {{scale:1}}, {{scale:1.04, duration:{length}, ease:"none"}}, {start});'
-                    )
-                transition = scene.get("transition", {})
-                if transition.get("enabled", True) and transition.get("type", "cut") != "cut":
-                    gsap_setup.append(
-                        f' tl.fromTo("#{fallback_id}", {{opacity:0}}, {{opacity:1, duration:0.3, ease:"power1.out"}}, {start}); tl.to("#{fallback_id}", {{opacity:0, duration:0.3}}, {max(start, end - 0.3)});'
-                    )
-            if sid in assets and scene.get("motion", {}).get("enabled", True) and idea:
-                title_id = f"scene-title-{sid}"
-                video_layers.append(
-                    f'<div class="scene-title clip" id="{title_id}" data-start="{start}" data-duration="{length}">{idea}</div>'
-                )
+            graphics_id = f"graphics-{sid}"
+            graphics_markup = graphics_service.render_scene(scene, guide.get("style", {}))
+            video_layers.append(
+                f'<div class="clip motion-graphics-layer" id="{graphics_id}" '
+                f'data-start="{start}" data-duration="{length}" '
+                f'data-track-index="{sid}">{graphics_markup}</div>'
+            )
+
+            if scene.get("motion", {}).get("enabled", True):
                 gsap_setup.append(
-                    f' tl.fromTo("#{title_id}", {{opacity:0, x:-28}}, {{opacity:1, x:0, duration:0.3, ease:"power2.out"}}, {start});'
+                    graphics_service.animation_script(graphics_id, start, length, guide.get("style", {}))
                 )
+
+            transition = scene.get("transition", {})
+            if transition.get("enabled", True) and transition.get("type", "cut") != "cut":
+                gsap_setup.append(
+                    f' tl.to("#{graphics_id}", '
+                    f'{{opacity:0, duration:0.18, ease:"power1.in"}}, '
+                    f'{max(start, end - 0.18)});'
+                )
+
         layer_markup = "\n".join(video_layers + captions)
         timeline = "".join(gsap_setup)
         template_root = files("templates")
@@ -161,6 +284,18 @@ class HyperFramesService:
                 ("captions", "caption.css"),
             )
         )
+        template_css += "\n" + font_css
+        template_css += "\n" + (
+            ".motion-scene{font-family:var(--font-label,Arial,sans-serif);}"
+            ".visual-heading{font-family:var(--font-heading,Arial,sans-serif);}"
+            ".scene-title{font-family:var(--font-title,Arial,sans-serif);}"
+            ".caption{font-family:var(--font-caption,Arial,sans-serif);}"
+            ".visual-index,.step-number,.timeline-point>span,"
+            ".chart-column strong,.data-value{font-family:var(--font-number,Arial,sans-serif);}"
+            ".sequence-item,.timeline-point,.graphic-tag,.side-label,"
+            ".concept-node,.abstract-label{font-family:var(--font-label,Arial,sans-serif);}"
+        )
+
         return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width={width},height={height}"><title>Universal Video Editor composition</title>
 <script src="./gsap.min.js"></script>
 <style>*{{box-sizing:border-box}}html,body{{margin:0;width:{width}px;height:{height}px;overflow:hidden;background:#10151b;font-family:Arial,sans-serif}}#root{{position:relative;width:{width}px;height:{height}px;overflow:hidden;background:linear-gradient(145deg,#172a3a,#10151b 55%,#403528)}}{template_css}
@@ -203,10 +338,58 @@ class HyperFramesService:
         gsap_path = destination.parent / "gsap.min.js"
         if gsap_path.exists():
             raise FileExistsError(f"Refusing to overwrite existing HyperFrames runtime asset: {gsap_path}")
-        shutil.copyfile(gsap_candidates[0], gsap_path)
-        destination.write_text(
-            self._composition_html(guide, assets, width, height, fps, destination.parent), encoding="utf-8"
+        html_content = self._composition_html(
+            guide, assets, width, height, fps, destination.parent
         )
+
+        temporary_gsap = None
+        temporary_html = None
+        gsap_published = False
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="wb",
+                dir=destination.parent,
+                prefix=".gsap-",
+                suffix=".part",
+                delete=False,
+            ) as temporary_file:
+                temporary_gsap = Path(temporary_file.name)
+                with gsap_candidates[0].open("rb") as source_file:
+                    shutil.copyfileobj(source_file, temporary_file)
+                temporary_file.flush()
+                import os
+                os.fsync(temporary_file.fileno())
+
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=destination.parent,
+                prefix=".composition-",
+                suffix=".part",
+                delete=False,
+            ) as temporary_file:
+                temporary_html = Path(temporary_file.name)
+                temporary_file.write(html_content)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+
+            os.link(temporary_gsap, gsap_path)
+            gsap_published = True
+
+            os.link(temporary_html, destination)
+
+        except Exception:
+            if gsap_published:
+                gsap_path.unlink(missing_ok=True)
+            raise
+
+        finally:
+            if temporary_gsap is not None:
+                temporary_gsap.unlink(missing_ok=True)
+            if temporary_html is not None:
+                temporary_html.unlink(missing_ok=True)
+
         return destination
 
     def render(

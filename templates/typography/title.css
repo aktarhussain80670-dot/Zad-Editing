@@ -1,1 +1,11 @@
-.scene-title{position:absolute;left:7%;top:10%;max-width:80%;color:#f2b66d;font-size:1.25em;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-shadow:0 2px 10px #000}
+.scene-title {
+    position: absolute;
+    left: 7%;
+    top: 10%;
+    max-width: 86%;
+    color: var(--accent);
+    font-size: 1.25em;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-shadow: 0 2px 12px #000;
+}

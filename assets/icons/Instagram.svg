@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <!-- Official Instagram Radial Gradient (Bottom-Left Warm Glow) -->
+    <radialGradient id="ig-warm" cx="35" cy="130" r="135" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFDD55" />
+      <stop offset="10%" stop-color="#FFDD55" />
+      <stop offset="50%" stop-color="#FF543E" />
+      <stop offset="100%" stop-color="#C837AB" />
+    </radialGradient>
+
+    <!-- Official Instagram Top-Left Blue-Purple Overlay -->
+    <radialGradient id="ig-cool" cx="20" cy="10" r="95" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3771C8" />
+      <stop offset="15%" stop-color="#3771C8" />
+      <stop offset="100%" stop-color="#6600FF" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Rounded Square Background (Radius: 32px) -->
+  <rect width="128" height="128" rx="32" fill="url(#ig-warm)" />
+  <rect width="128" height="128" rx="32" fill="url(#ig-cool)" />
+
+  <!-- Instagram White Camera Glyph -->
+  <!-- Outer Camera Frame -->
+  <rect x="26" y="26" width="76" height="76" rx="22" stroke="#FFFFFF" stroke-width="8" />
+
+  <!-- Center Lens Circle -->
+  <circle cx="64" cy="64" r="18" stroke="#FFFFFF" stroke-width="8" />
+
+  <!-- Top-Right Flash Dot -->
+  <circle cx="85" cy="43" r="5" fill="#FFFFFF" />
+</svg>

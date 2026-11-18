@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <!-- Back Tab & Body Gradient (Authentic Golden Yellow) -->
+    <linearGradient id="folder-back" x1="16" y1="18" x2="112" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFD54F" />
+      <stop offset="100%" stop-color="#FF9800" />
+    </linearGradient>
+
+    <!-- Front Flap Gradient (Vibrant Amber Yellow) -->
+    <linearGradient id="folder-front" x1="16" y1="46" x2="112" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFC107" />
+      <stop offset="100%" stop-color="#F57C00" />
+    </linearGradient>
+
+    <!-- Subtle Depth Shadow for All Backgrounds -->
+    <filter id="folder-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <g filter="url(#folder-shadow)">
+    <!-- Folder Back Body & Left-Aligned Tab (Matching Image Shape) -->
+    <path d="M 18 34 C 18 26.268 24.268 20 32 20 L 50 20 C 54.3857 20 58.4632 22.1245 60.8571 25.6857 L 67.1429 34.8143 C 69.5368 38.3755 73.6143 40.5 78 40.5 L 102 40.5 C 109.732 40.5 116 46.768 116 54.5 L 116 98 C 116 105.732 109.732 112 102 112 L 32 112 C 24.268 112 18 105.732 18 98 L 18 34 Z"
+          fill="url(#folder-back)" />
+
+    <!-- Inner Tab Edge Highlight / Depth Line -->
+    <path d="M 32 23 L 50 23 C 53.6074 23 57.0094 24.7865 59.0816 27.8724 L 65.3674 37.0013 C 67.4396 40.0872 70.8416 41.8737 74.449 41.8737 L 102 41.8737 C 108.075 41.8737 113 46.7987 113 52.8737"
+          stroke="#FFE082" stroke-opacity="0.8" stroke-width="2" fill="none" stroke-linecap="round" />
+
+    <!-- Folder Front Flap Cover (Rounded Corners & Image Match) -->
+    <rect x="18" y="46" width="98" height="64" rx="14" fill="url(#folder-front)" />
+
+    <!-- Front Flap Top Glossy Highlight Line -->
+    <path d="M 32 46 L 96 46 C 104.284 46 111 52.7157 111 61 L 111 61 C 111 52.7157 104.284 46 96 46 L 32 46 C 23.7157 46 17 52.7157 17 61 L 17 61 C 17 52.7157 23.7157 46 32 46 Z"
+          fill="#FFFFFF" fill-opacity="0.35" />
+
+    <!-- Front Flap Outer Border Outline -->
+    <rect x="18.75" y="46.75" width="96.5" height="62.5" rx="13.25" stroke="#E65100" stroke-opacity="0.25" stroke-width="1.5" fill="none" />
+  </g>
+</svg>

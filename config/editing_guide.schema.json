@@ -1,45 +1,386 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:universal-video-editor:editing-guide:v1",
-  "title": "Universal Video Editor guide",
+  "$id": "urn:universal-video-editor:editing-guide:v2",
+  "title": "Universal Video Editor Guide",
   "type": "object",
-  "required": ["schema_version", "duration", "transcript", "style", "scenes"],
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "duration",
+    "transcript",
+    "audio_analysis",
+    "style",
+    "scenes"
+  ],
   "properties": {
-    "schema_version": {"const": 1},
-    "duration": {"type": "number", "exclusiveMinimum": 0},
+    "schema_version": {
+      "const": 2
+    },
+    "duration": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
     "transcript": {
       "type": "object",
       "required": ["duration", "text", "segments"],
       "properties": {
-        "duration": {"type": "number", "exclusiveMinimum": 0},
-        "text": {"type": "string"},
-        "segments": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["start", "end", "text"], "properties": {"start": {"type": "number", "minimum": 0}, "end": {"type": "number", "exclusiveMinimum": 0}, "text": {"type": "string"}, "words": {"type": "array"}}}}
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["start", "end", "text"],
+            "properties": {
+              "start": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "text": {
+                "type": "string"
+              },
+              "words": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/wordTimestamp"
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "style": {"type": "object"},
+    "audio_analysis": {
+      "type": "object"
+    },
+    "style": {
+      "type": "object"
+    },
     "scenes": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["scene_id", "start", "end", "transcript", "visual_idea", "visual_required", "visual_search_query", "external_media", "caption", "typography", "motion", "transition", "sound_effect", "audio"],
+        "required": [
+          "scene_id",
+          "start",
+          "end",
+          "transcript",
+          "visual_idea",
+          "visual_required",
+          "visual_search_query",
+          "visual_requirements",
+          "visual_plan",
+          "external_media",
+          "caption",
+          "typography",
+          "motion",
+          "transition",
+          "sound_effect",
+          "audio"
+        ],
         "properties": {
-          "scene_id": {"type": "integer", "minimum": 1},
-          "start": {"type": "number", "minimum": 0},
-          "end": {"type": "number", "exclusiveMinimum": 0},
-          "transcript": {"type": "string"},
-          "visual_idea": {"type": "string"},
-          "visual_required": {"type": "boolean"},
-          "visual_search_query": {"type": "string"},
-          "external_media": {"type": "object", "required": ["required", "query"], "properties": {"required": {"type": "boolean"}, "query": {"type": "string"}}},
-          "caption": {"type": "object", "required": ["enabled", "text", "animation"], "properties": {"enabled": {"type": "boolean"}, "text": {"type": "string"}, "animation": {"type": "string"}}},
-          "typography": {"type": "object"},
-          "motion": {"type": "object", "required": ["type"], "properties": {"type": {"type": "string"}}},
-          "transition": {"type": "object", "required": ["type"], "properties": {"type": {"type": "string"}}},
-          "sound_effect": {"type": "object", "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}},
-          "audio": {"type": "object", "required": ["music_enabled", "sound_effect_enabled"], "properties": {"music_enabled": {"type": "boolean"}, "sound_effect_enabled": {"type": "boolean"}}}
+          "scene_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "start": {
+            "type": "number",
+            "minimum": 0
+          },
+          "end": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "transcript": {
+            "type": "string"
+          },
+          "visual_idea": {
+            "type": "string"
+          },
+          "visual_required": {
+            "type": "boolean"
+          },
+          "visual_search_query": {
+            "const": ""
+          },
+          "visual_requirements": {
+            "type": "object",
+            "required": [
+              "orientation",
+              "generated_with_html_css_javascript",
+              "avoid_reference_audio"
+            ],
+            "properties": {
+              "orientation": {
+                "const": "portrait"
+              },
+              "generated_with_html_css_javascript": {
+                "const": true
+              },
+              "avoid_reference_audio": {
+                "const": true
+              }
+            }
+          },
+          "visual_plan": {
+            "type": "object",
+            "required": [
+              "rendering_engine",
+              "implementation",
+              "visual_category",
+              "primary_element",
+              "supporting_elements",
+              "composition",
+              "style",
+              "animation",
+              "generation_constraints"
+            ],
+            "properties": {
+              "rendering_engine": {
+                "const": "hyperframes"
+              },
+              "implementation": {
+                "const": "html_css_javascript"
+              },
+              "visual_category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "primary_element": {
+                "type": "object",
+                "required": ["type", "subject", "key_terms"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "key_terms": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "supporting_elements": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "composition": {
+                "type": "object",
+                "required": [
+                  "orientation",
+                  "layout_reference",
+                  "visual_hierarchy"
+                ],
+                "properties": {
+                  "orientation": {
+                    "const": "portrait"
+                  },
+                  "layout_reference": {
+                    "type": "string"
+                  },
+                  "visual_hierarchy": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "style": {
+                "type": "object"
+              },
+              "animation": {
+                "type": "object",
+                "required": [
+                  "sync_to_voiceover",
+                  "emphasis_timestamps",
+                  "entrance",
+                  "exit"
+                ],
+                "properties": {
+                  "sync_to_voiceover": {
+                    "const": true
+                  },
+                  "emphasis_timestamps": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  },
+                  "entrance": {
+                    "type": "string"
+                  },
+                  "exit": {
+                    "type": "string"
+                  }
+                }
+              },
+              "generation_constraints": {
+                "type": "object",
+                "required": [
+                  "use_external_video",
+                  "use_external_images",
+                  "use_reference_footage",
+                  "use_reference_audio",
+                  "avoid_generic_text_card"
+                ],
+                "properties": {
+                  "use_external_video": {
+                    "const": false
+                  },
+                  "use_external_images": {
+                    "const": false
+                  },
+                  "use_reference_footage": {
+                    "const": false
+                  },
+                  "use_reference_audio": {
+                    "const": false
+                  },
+                  "avoid_generic_text_card": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          },
+          "external_media": {
+            "type": "object",
+            "required": ["required", "query"],
+            "properties": {
+              "required": {
+                "const": false
+              },
+              "query": {
+                "const": ""
+              }
+            }
+          },
+          "caption": {
+            "type": "object",
+            "required": ["enabled", "text", "animation"],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "text": {
+                "type": "string"
+              },
+              "animation": {
+                "type": "string"
+              },
+              "word_timestamps": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/wordTimestamp"
+                }
+              }
+            }
+          },
+          "typography": {
+            "type": "object"
+          },
+          "motion": {
+            "type": "object",
+            "required": ["enabled", "type", "sync_to_voiceover"],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "type": {
+                "type": "string"
+              },
+              "sync_to_voiceover": {
+                "const": true
+              }
+            }
+          },
+          "transition": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "type": "string"
+              }
+            }
+          },
+          "sound_effect": {
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              }
+            }
+          },
+          "audio": {
+            "type": "object",
+            "required": ["music_enabled", "sound_effect_enabled"],
+            "properties": {
+              "music_enabled": {
+                "type": "boolean"
+              },
+              "sound_effect_enabled": {
+                "type": "boolean"
+              }
+            }
+          }
         }
       }
+    }
+  },
+  "$defs": {
+    "wordTimestamp": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "word": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0
+        },
+        "end": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["word"]
+        },
+        {
+          "required": ["text"]
+        }
+      ]
     }
   }
 }

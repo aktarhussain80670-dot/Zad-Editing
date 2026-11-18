@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <!-- Official Git Orange-Red Rounded Square Background -->
+  <rect width="128" height="128" rx="32" fill="#F05032" />
+
+  <!-- Git Branch Lines -->
+  <g stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Diagonal Main & Feature Branch Line -->
+    <line x1="37" y1="24" x2="85" y2="72" />
+    <!-- Vertical Branch Line -->
+    <line x1="59" y1="46" x2="59" y2="98" />
+  </g>
+
+  <!-- Git Commit Nodes (Circles) -->
+  <g fill="#FFFFFF">
+    <circle cx="59" cy="46" r="11.5" />
+    <circle cx="85" cy="72" r="11.5" />
+    <circle cx="59" cy="98" r="11.5" />
+  </g>
+</svg>

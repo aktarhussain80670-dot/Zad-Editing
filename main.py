@@ -13,7 +13,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--voiceover", required=True, type=Path)
     parser.add_argument(
-        "--reference", required=True, action="append", type=Path, help="Provide 3 or 4 reference videos"
+        "--reference", required=True, action="append", type=Path, help="Provide 1 to 4 reference videos"
     )
     parser.add_argument("--guide", type=Path, default=Path("storage/editing_guides/editing_guide.json"))
     parser.add_argument("--plan-only", action="store_true", help="Generate the editing guide without rendering video")
