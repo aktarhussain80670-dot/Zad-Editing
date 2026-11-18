@@ -339,7 +339,10 @@ class VoiceoverAnalyzer:
             ):
                 raise ValueError(
                     f"Whisper returned invalid or overlapping segment "
-                    f"timestamps in segment {index}"
+                    f"timestamps in segment {index}: "
+                    f"start={start!r}, end={end!r}, "
+                    f"previous_segment_end={previous_segment_end!r}, "
+                    f"duration={duration!r}"
                 )
 
             end = min(end, duration)
