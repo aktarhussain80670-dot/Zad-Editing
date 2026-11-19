@@ -6,7 +6,7 @@ import math
 from typing import Any
 
 
-TIME_TOLERANCE = 0.05
+TIMING_EPSILON = 0.001
 
 
 def _number(value: Any, field: str) -> float:
@@ -117,7 +117,7 @@ def validate_timeline(guide: dict[str, Any]) -> None:
         "Transcript duration",
     )
 
-    if abs(transcript_duration - duration) > TIME_TOLERANCE:
+    if abs(transcript_duration - duration) > TIMING_EPSILON:
         raise ValueError(
             "Guide duration must match original voiceover duration"
         )
@@ -190,7 +190,7 @@ def validate_timeline(guide: dict[str, Any]) -> None:
         start = _number(scene.get("start"), "Scene start")
         end = _number(scene.get("end"), "Scene end")
 
-        if abs(start - cursor) > TIME_TOLERANCE:
+        if abs(start - cursor) > TIMING_EPSILON:
             raise ValueError(
                 f"Scene {expected_id} has a gap or overlap"
             )
@@ -444,7 +444,7 @@ def validate_timeline(guide: dict[str, Any]) -> None:
 
         cursor = end
 
-    if cursor != duration:
+    if abs(cursor - duration) > TIMING_EPSILON:
         raise ValueError(
             "Timeline must end at original voiceover duration"
         )

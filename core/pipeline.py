@@ -280,10 +280,32 @@ def run_pipeline(
             )
             last_stage = "audio_analysis"
 
+        original_audio_duration = float(
+            FFprobeService().probe(voiceover)["duration"]
+        )
+        transcript_duration = float(state["transcript"]["duration"])
+        if abs(transcript_duration - original_audio_duration) > 0.001:
+            logger.warning(
+                "Overriding transcript duration %.6f with original voiceover duration %.6f",
+                transcript_duration,
+                original_audio_duration,
+            )
+        state["transcript"] = dict(state["transcript"])
+        state["transcript"]["duration"] = original_audio_duration
+
         # Cached guide state is only accepted when its persisted artifact matches.
-        if "guide" in state and not _validate_cached_guide(
-            state["guide"],
-            guide_path,
+        cached_duration = (
+            state.get("guide", {}).get("duration")
+            if isinstance(state.get("guide"), dict)
+            else None
+        )
+        if "guide" in state and (
+            not _validate_cached_guide(
+                state["guide"],
+                guide_path,
+            )
+            or not isinstance(cached_duration, (int, float))
+            or abs(float(cached_duration) - original_audio_duration) > 0.001
         ):
             logger.warning("Invalid cached guide detected; regenerating guide")
             for key in (
@@ -323,6 +345,7 @@ def run_pipeline(
                 state["caption_scenes"],
                 guide_path,
                 audio_analysis=state["audio_analysis"],
+                audio_duration=original_audio_duration,
             )
 
             generated = _unique_paths([*generated, guide_path])

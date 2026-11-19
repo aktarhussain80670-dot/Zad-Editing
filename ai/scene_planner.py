@@ -842,11 +842,14 @@ def plan_scenes(
             for word in item["words"]
         ]
 
+        scene_start = 0.0 if index == 0 else round(start, 3)
+        scene_end = duration if index == len(groups) - 1 else round(end, 3)
+
         scenes.append(
             {
                 "scene_id": index + 1,
-                "start": round(start, 3),
-                "end": round(end, 3),
+                "start": scene_start,
+                "end": scene_end,
                 "transcript": scene_text,
 
                 "visual_idea": (

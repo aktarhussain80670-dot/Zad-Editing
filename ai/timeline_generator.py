@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import math
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ def generate_guide(
     scenes: list[dict[str, Any]],
     output: Path = Path("storage/editing_guides/editing_guide.json"),
     audio_analysis: dict[str, Any] | None = None,
+    audio_duration: float | None = None,
 ) -> dict[str, Any]:
     if not isinstance(transcript, dict):
         raise TypeError("Transcript must be an object")
@@ -29,6 +31,18 @@ def generate_guide(
 
     if audio_analysis is not None and not isinstance(audio_analysis, dict):
         raise TypeError("Audio analysis must be an object")
+
+    if audio_duration is not None:
+        if (
+            isinstance(audio_duration, bool)
+            or not isinstance(audio_duration, (int, float))
+            or not math.isfinite(audio_duration)
+            or audio_duration <= 0
+        ):
+            raise ValueError("Original audio duration must be finite and positive")
+
+        transcript = dict(transcript)
+        transcript["duration"] = float(audio_duration)
 
     guide = {
         "schema_version": 2,
