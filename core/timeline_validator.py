@@ -38,9 +38,23 @@ def _string(value: Any, field: str) -> None:
         raise TypeError(f"{field} must be a string")
 
 
+def _nonempty_string(value: Any, field: str) -> None:
+    _string(value, field)
+
+    if not value.strip():
+        raise ValueError(f"{field} must not be empty")
+
+
 def _boolean(value: Any, field: str) -> None:
     if not isinstance(value, bool):
         raise TypeError(f"{field} must be boolean")
+
+
+def _strict_integer(value: Any, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{field} must be an integer")
+
+    return value
 
 
 def _validate_words(
@@ -59,17 +73,27 @@ def _validate_words(
         word_end = _number(word.get("end"), "Word end")
 
         word_text = word.get("word", word.get("text"))
-        _string(word_text, "Word text")
+        _nonempty_string(word_text, "Word text")
 
-        if (
-            word_start < start - TIME_TOLERANCE
-            or word_end <= word_start
-            or word_end > end + TIME_TOLERANCE
-        ):
-            raise ValueError(f"{field} {index} has invalid timestamps")
+        if word_start < start:
+            raise ValueError(
+                f"{field} {index} starts before its allowed boundary"
+            )
 
-        if word_start < previous_end - TIME_TOLERANCE:
-            raise ValueError(f"{field} timestamps are out of order or overlapping")
+        if word_end > end:
+            raise ValueError(
+                f"{field} {index} ends after its allowed boundary"
+            )
+
+        if word_end <= word_start:
+            raise ValueError(
+                f"{field} {index} has invalid duration"
+            )
+
+        if word_start < previous_end:
+            raise ValueError(
+                f"{field} timestamps are out of order or overlapping"
+            )
 
         previous_end = word_end
 
@@ -89,13 +113,19 @@ def validate_timeline(guide: dict[str, Any]) -> None:
     _string(transcript.get("text"), "Guide transcript text")
 
     transcript_duration = _number(
-        transcript.get("duration"), "Transcript duration"
+        transcript.get("duration"),
+        "Transcript duration",
     )
 
     if abs(transcript_duration - duration) > TIME_TOLERANCE:
-        raise ValueError("Guide duration must match original voiceover duration")
+        raise ValueError(
+            "Guide duration must match original voiceover duration"
+        )
 
-    segments = _list(transcript.get("segments"), "Transcript segments")
+    segments = _list(
+        transcript.get("segments"),
+        "Transcript segments",
+    )
 
     if not segments:
         raise ValueError("Transcript requires timed segments")
@@ -104,20 +134,29 @@ def validate_timeline(guide: dict[str, Any]) -> None:
 
     for index, item in enumerate(segments, 1):
         segment = _object(item, f"Transcript segment {index}")
-        _string(segment.get("text"), f"Transcript segment {index} text")
+
+        _string(
+            segment.get("text"),
+            f"Transcript segment {index} text",
+        )
 
         start = _number(segment.get("start"), "Segment start")
         end = _number(segment.get("end"), "Segment end")
 
-        if start < 0 or end <= start or end > duration + TIME_TOLERANCE:
-            raise ValueError(f"Transcript segment {index} has invalid timestamps")
+        if start < 0 or end <= start or end > duration:
+            raise ValueError(
+                f"Transcript segment {index} has invalid timestamps"
+            )
 
-        if start < previous_segment_end - TIME_TOLERANCE:
-            raise ValueError("Transcript segments are out of order or overlapping")
+        if start < previous_segment_end:
+            raise ValueError(
+                "Transcript segments are out of order or overlapping"
+            )
 
         previous_segment_end = end
 
         words = segment.get("words", [])
+
         _validate_words(
             words,
             start,
@@ -138,50 +177,89 @@ def validate_timeline(guide: dict[str, Any]) -> None:
     for expected_id, item in enumerate(scenes, 1):
         scene = _object(item, f"Scene {expected_id}")
 
-        scene_id = scene.get("scene_id")
-        if isinstance(scene_id, bool) or scene_id != expected_id:
-            raise ValueError("Scene IDs must be sequential integers")
+        scene_id = _strict_integer(
+            scene.get("scene_id"),
+            "Scene ID",
+        )
+
+        if scene_id != expected_id:
+            raise ValueError(
+                "Scene IDs must be sequential integers"
+            )
 
         start = _number(scene.get("start"), "Scene start")
         end = _number(scene.get("end"), "Scene end")
 
-        if abs(start - cursor) > TIME_TOLERANCE or end <= start:
+        if start != cursor:
             raise ValueError(
-                f"Scene {expected_id} has a gap, overlap, or invalid duration"
+                f"Scene {expected_id} has a gap or overlap"
             )
 
-        if end > duration + TIME_TOLERANCE:
-            raise ValueError(f"Scene {expected_id} exceeds guide duration")
+        if end <= start:
+            raise ValueError(
+                f"Scene {expected_id} has invalid duration"
+            )
+
+        if end > duration:
+            raise ValueError(
+                f"Scene {expected_id} exceeds guide duration"
+            )
 
         _string(scene.get("transcript"), "Scene transcript")
         _string(scene.get("visual_idea"), "Scene visual idea")
 
         if scene.get("visual_search_query") != "":
-            raise ValueError("External visual search queries must remain empty")
+            raise ValueError(
+                "External visual search queries must remain empty"
+            )
 
         _boolean(scene.get("visual_required"), "Visual required")
 
         requirements = _object(
-            scene.get("visual_requirements"), "Visual requirements"
+            scene.get("visual_requirements"),
+            "Visual requirements",
         )
 
         if requirements.get("orientation") != "portrait":
-            raise ValueError("Visual requirements must use portrait orientation")
+            raise ValueError(
+                "Visual requirements must use portrait orientation"
+            )
 
-        if requirements.get("generated_with_html_css_javascript") is not True:
-            raise ValueError("Visuals must be generated with HTML/CSS/JavaScript")
+        if requirements.get(
+            "generated_with_html_css_javascript"
+        ) is not True:
+            raise ValueError(
+                "Visuals must be generated with HTML/CSS/JavaScript"
+            )
 
         if requirements.get("avoid_reference_audio") is not True:
-            raise ValueError("Reference audio must not be used")
+            raise ValueError(
+                "Reference audio must not be used"
+            )
 
         caption = _object(scene.get("caption"), "Scene caption")
-        typography = _object(scene.get("typography"), "Scene typography")
+        typography = _object(
+            scene.get("typography"),
+            "Scene typography",
+        )
         motion = _object(scene.get("motion"), "Scene motion")
-        transition = _object(scene.get("transition"), "Scene transition")
-        sound_effect = _object(scene.get("sound_effect"), "Scene sound effect")
+        transition = _object(
+            scene.get("transition"),
+            "Scene transition",
+        )
+        sound_effect = _object(
+            scene.get("sound_effect"),
+            "Scene sound effect",
+        )
         audio = _object(scene.get("audio"), "Scene audio")
-        external_media = _object(scene.get("external_media"), "Scene external media")
-        visual_plan = _object(scene.get("visual_plan"), "Scene visual plan")
+        external_media = _object(
+            scene.get("external_media"),
+            "Scene external media",
+        )
+        visual_plan = _object(
+            scene.get("visual_plan"),
+            "Scene visual plan",
+        )
 
         _boolean(caption.get("enabled"), "Caption enabled")
         _string(caption.get("text"), "Caption text")
@@ -199,34 +277,70 @@ def validate_timeline(guide: dict[str, Any]) -> None:
         _string(motion.get("type"), "Motion type")
 
         if motion.get("sync_to_voiceover") is not True:
-            raise ValueError("Motion must synchronize to voiceover")
+            raise ValueError(
+                "Motion must synchronize to voiceover"
+            )
 
         _string(transition.get("type"), "Transition type")
-        _boolean(sound_effect.get("enabled"), "Sound effect enabled")
-        _boolean(audio.get("music_enabled"), "Music enabled")
-        _boolean(audio.get("sound_effect_enabled"), "Audio sound effect enabled")
+
+        _boolean(
+            sound_effect.get("enabled"),
+            "Sound effect enabled",
+        )
+
+        _boolean(
+            audio.get("music_enabled"),
+            "Music enabled",
+        )
+
+        _boolean(
+            audio.get("sound_effect_enabled"),
+            "Audio sound effect enabled",
+        )
 
         if external_media.get("required") is not False:
             raise ValueError("External media must remain disabled")
 
         if external_media.get("query") != "":
-            raise ValueError("External media query must remain empty")
+            raise ValueError(
+                "External media query must remain empty"
+            )
+
+        if external_media.get("enabled") is True:
+            raise ValueError(
+                "External media cannot be enabled"
+            )
 
         if visual_plan.get("rendering_engine") != "hyperframes":
-            raise ValueError("Every scene must use HyperFrames")
+            raise ValueError(
+                "Every scene must use HyperFrames"
+            )
 
-        if visual_plan.get("implementation") != "html_css_javascript":
-            raise ValueError("Scene visuals must use HTML/CSS/JavaScript")
+        if visual_plan.get(
+            "implementation"
+        ) != "html_css_javascript":
+            raise ValueError(
+                "Scene visuals must use HTML/CSS/JavaScript"
+            )
 
-        _string(visual_plan.get("visual_category"), "Visual category")
+        _string(
+            visual_plan.get("visual_category"),
+            "Visual category",
+        )
 
         primary = _object(
-            visual_plan.get("primary_element"), "Primary visual element"
+            visual_plan.get("primary_element"),
+            "Primary visual element",
         )
+
         _string(primary.get("type"), "Primary visual type")
         _string(primary.get("subject"), "Primary visual subject")
 
-        key_terms = _list(primary.get("key_terms"), "Visual key terms")
+        key_terms = _list(
+            primary.get("key_terms"),
+            "Visual key terms",
+        )
+
         for term in key_terms:
             _string(term, "Visual key term")
 
@@ -236,31 +350,48 @@ def validate_timeline(guide: dict[str, Any]) -> None:
         )
 
         for index, element in enumerate(supporting, 1):
-            _object(element, f"Supporting visual element {index}")
+            _object(
+                element,
+                f"Supporting visual element {index}",
+            )
 
         composition = _object(
-            visual_plan.get("composition"), "Visual composition"
+            visual_plan.get("composition"),
+            "Visual composition",
         )
 
         if composition.get("orientation") != "portrait":
-            raise ValueError("Visual composition must use portrait orientation")
+            raise ValueError(
+                "Visual composition must use portrait orientation"
+            )
 
-        _string(composition.get("layout_reference"), "Layout reference")
+        _string(
+            composition.get("layout_reference"),
+            "Layout reference",
+        )
 
         hierarchy = _list(
-            composition.get("visual_hierarchy"), "Visual hierarchy"
+            composition.get("visual_hierarchy"),
+            "Visual hierarchy",
         )
+
         for item in hierarchy:
             _string(item, "Visual hierarchy item")
 
-        _object(visual_plan.get("style"), "Visual style")
+        _object(
+            visual_plan.get("style"),
+            "Visual style",
+        )
 
         animation = _object(
-            visual_plan.get("animation"), "Visual animation"
+            visual_plan.get("animation"),
+            "Visual animation",
         )
 
         if animation.get("sync_to_voiceover") is not True:
-            raise ValueError("Scene animation must synchronize to voiceover")
+            raise ValueError(
+                "Scene animation must synchronize to voiceover"
+            )
 
         emphasis = _list(
             animation.get("emphasis_timestamps"),
@@ -268,12 +399,25 @@ def validate_timeline(guide: dict[str, Any]) -> None:
         )
 
         for timestamp in emphasis:
-            timestamp = _number(timestamp, "Emphasis timestamp")
-            if timestamp < start or timestamp > end:
-                raise ValueError("Emphasis timestamp is outside its scene")
+            timestamp = _number(
+                timestamp,
+                "Emphasis timestamp",
+            )
 
-        _string(animation.get("entrance"), "Animation entrance")
-        _string(animation.get("exit"), "Animation exit")
+            if timestamp < start or timestamp > end:
+                raise ValueError(
+                    "Emphasis timestamp is outside its scene"
+                )
+
+        _string(
+            animation.get("entrance"),
+            "Animation entrance",
+        )
+
+        _string(
+            animation.get("exit"),
+            "Animation exit",
+        )
 
         constraints = _object(
             visual_plan.get("generation_constraints"),
@@ -287,12 +431,20 @@ def validate_timeline(guide: dict[str, Any]) -> None:
             "use_reference_audio",
         ):
             if constraints.get(key) is not False:
-                raise ValueError(f"Visual constraint {key} must be disabled")
+                raise ValueError(
+                    f"Visual constraint {key} must be disabled"
+                )
 
-        if constraints.get("avoid_generic_text_card") is not True:
-            raise ValueError("Generic text-card fallback is not permitted")
+        if constraints.get(
+            "avoid_generic_text_card"
+        ) is not True:
+            raise ValueError(
+                "Generic text-card fallback is not permitted"
+            )
 
         cursor = end
 
-    if abs(cursor - duration) > TIME_TOLERANCE:
-        raise ValueError("Timeline must end at original voiceover duration")
+    if cursor != duration:
+        raise ValueError(
+            "Timeline must end at original voiceover duration"
+        )

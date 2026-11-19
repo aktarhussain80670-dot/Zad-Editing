@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import uuid
@@ -27,6 +28,127 @@ from services.video_renderer import VideoRenderer
 
 logger = logging.getLogger(__name__)
 
+_STAGE_ORDER = {
+    "references": 1,
+    "transcription": 2,
+    "audio_analysis": 3,
+    "guide": 4,
+    "rendered": 5,
+}
+
+
+def _unique_paths(paths: list[Path]) -> list[Path]:
+    """Deduplicate paths while preserving their original order."""
+    result: list[Path] = []
+    seen: set[str] = set()
+
+    for path in paths:
+        resolved = str(Path(path).resolve())
+        if resolved not in seen:
+            seen.add(resolved)
+            result.append(Path(resolved))
+
+    return result
+
+
+def _checkpoint_is_consistent(checkpoint_data: dict[str, Any]) -> bool:
+    """Reject checkpoints whose completed stage disagrees with their state."""
+    stage = checkpoint_data.get("last_completed_stage")
+
+    if stage not in _STAGE_ORDER:
+        return False
+
+    data = checkpoint_data.get("data")
+    if not isinstance(data, dict):
+        return False
+
+    required_by_stage = {
+        "references": ("reference_analyses",),
+        "transcription": ("reference_analyses", "transcript"),
+        "audio_analysis": (
+            "reference_analyses",
+            "transcript",
+            "audio_analysis",
+        ),
+        "guide": (
+            "reference_analyses",
+            "transcript",
+            "audio_analysis",
+            "style",
+            "scenes",
+            "caption_scenes",
+            "guide",
+        ),
+        "rendered": (
+            "reference_analyses",
+            "transcript",
+            "audio_analysis",
+            "style",
+            "scenes",
+            "caption_scenes",
+            "guide",
+        ),
+    }
+
+    return all(key in data for key in required_by_stage[stage])
+
+
+def _validate_cached_guide(
+    guide: Any,
+    guide_path: Path,
+) -> bool:
+    """Ensure cached guide data and its persisted artifact are both valid."""
+    if not isinstance(guide, dict) or not guide:
+        return False
+
+    if not guide_path.is_file() or guide_path.stat().st_size == 0:
+        return False
+
+    try:
+        saved_guide = json.loads(guide_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False
+
+    return isinstance(saved_guide, dict) and saved_guide == guide
+
+
+def _validate_cached_render(
+    path: Path,
+    guide: dict[str, Any],
+    config: Settings,
+) -> dict[str, Any]:
+    """Validate cached output against the production render specification."""
+    info = FFprobeService().validate(
+        path,
+        require_video=True,
+        require_audio=True,
+        expected_duration=float(guide["duration"]),
+        expected_fps=config.video_fps,
+    )
+
+    expected_video = {
+        "width": config.video_width,
+        "height": config.video_height,
+        "video_codec": config.video_codec,
+        "pixel_format": config.video_pixel_format,
+    }
+
+    for field, expected in expected_video.items():
+        actual = info.get(field)
+        if actual != expected:
+            raise MediaToolError(
+                f"Cached render has invalid {field}: "
+                f"{actual!r}; expected {expected!r}"
+            )
+
+    if not info.get("constant_frame_rate"):
+        raise MediaToolError("Cached render failed constant-frame-rate validation")
+
+    if not info.get("has_audio") or not info.get("has_video"):
+        raise MediaToolError("Cached render is missing required audio/video streams")
+
+    return info
+
 
 def run_pipeline(
     voiceover: Path,
@@ -41,8 +163,10 @@ def run_pipeline(
     config = settings or Settings.from_env()
     config.validate()
     validate_inputs(voiceover, references, config)
+
     if music is not None and config.enable_background_music and not music.is_file():
         raise ValueError(f"Optional background music was not found: {music}")
+
     if config.enable_sound_effects:
         for effect_path, timestamp in sound_effects or []:
             valid_timestamp = (
@@ -53,33 +177,70 @@ def run_pipeline(
             )
             if not effect_path.is_file() or not valid_timestamp:
                 raise ValueError(
-                    f"Optional sound effect is missing or has an invalid timestamp: {effect_path}"
+                    f"Optional sound effect is missing or has an invalid timestamp: "
+                    f"{effect_path}"
                 )
-    optional_audio = []
+
+    optional_audio: list[Path] = []
+
     if config.enable_background_music and music is not None:
         optional_audio.append(music)
+
     if config.enable_sound_effects:
         optional_audio.extend(path for path, _ in sound_effects or [])
+
     fingerprint = CheckpointManager().fingerprint(
         [voiceover, *references, *optional_audio],
         {
-            "pipeline_version": 3,
+            "pipeline_version": 4,
             "settings": config,
             "guide_path": str(guide_path.resolve()),
-            "sound_effects": [(str(path.resolve()), timestamp) for path, timestamp in sound_effects or []],
+            "sound_effects": [
+                (str(path.resolve()), timestamp)
+                for path, timestamp in sound_effects or []
+            ],
         },
     )
+
     checkpoint = CheckpointManager()
     previous = checkpoint.load(fingerprint) if resume else None
-    state: dict[str, Any] = previous.get("data", {}) if previous else {}
-    generated = [Path(p) for p in previous.get("generated_files", [])] if previous else []
-    last_stage = previous.get("last_completed_stage") if previous else None
+
+    if previous and not _checkpoint_is_consistent(previous):
+        logger.warning("Discarding inconsistent checkpoint state")
+        previous = None
+
+    state: dict[str, Any] = (
+        previous.get("data", {}).copy()
+        if previous
+        else {}
+    )
+
+    generated = _unique_paths(
+        [Path(p) for p in previous.get("generated_files", [])]
+        if previous
+        else []
+    )
+
+    last_stage = (
+        previous.get("last_completed_stage")
+        if previous
+        else None
+    )
+
     run_temp = Path("temp") / f"{fingerprint[:12]}-{uuid.uuid4().hex[:8]}"
+
     try:
         if "reference_analyses" not in state:
             logger.info("Analyzing %d reference videos", len(references))
             state["reference_analyses"] = ReferenceVideoService().analyze_many(references)
-            checkpoint.save(fingerprint, "references", generated, data=state)
+            checkpoint.save(
+                fingerprint,
+                "references",
+                generated,
+                data=state,
+            )
+            last_stage = "references"
+
         if "transcript" not in state:
             logger.info("Transcribing original voiceover with local Whisper")
             state["transcript"] = VoiceoverAnalyzer(
@@ -89,9 +250,21 @@ def run_pipeline(
                 config.whisper_download_root,
                 config.whisper_allow_model_download,
             ).analyze(voiceover)
-            if not config.video_min_duration <= float(state["transcript"]["duration"]) <= config.video_max_duration:
-                raise ValueError("Voiceover duration is outside configured VIDEO_MIN_DURATION / VIDEO_MAX_DURATION")
-            checkpoint.save(fingerprint, "transcription", generated, data=state)
+
+            duration = float(state["transcript"]["duration"])
+            if not config.video_min_duration <= duration <= config.video_max_duration:
+                raise ValueError(
+                    "Voiceover duration is outside configured "
+                    "VIDEO_MIN_DURATION / VIDEO_MAX_DURATION"
+                )
+
+            checkpoint.save(
+                fingerprint,
+                "transcription",
+                generated,
+                data=state,
+            )
+            last_stage = "transcription"
 
         if "audio_analysis" not in state:
             logger.info("Analyzing original voiceover audio characteristics")
@@ -99,25 +272,51 @@ def run_pipeline(
                 voiceover,
                 state["transcript"],
             )
-            checkpoint.save(fingerprint, "audio_analysis", generated, data=state)
+            checkpoint.save(
+                fingerprint,
+                "audio_analysis",
+                generated,
+                data=state,
+            )
+            last_stage = "audio_analysis"
+
+        # Cached guide state is only accepted when its persisted artifact matches.
+        if "guide" in state and not _validate_cached_guide(
+            state["guide"],
+            guide_path,
+        ):
+            logger.warning("Invalid cached guide detected; regenerating guide")
+            for key in (
+                "style",
+                "scenes",
+                "caption_scenes",
+                "guide",
+            ):
+                state.pop(key, None)
+
+            last_stage = "audio_analysis"
 
         if "guide" not in state:
             state["style"] = extract_style(state["reference_analyses"])
+
             state["scenes"] = direct(
                 state["transcript"],
                 state["style"],
                 enabled_features(config),
                 audio_analysis=state["audio_analysis"],
             )
+
             transliteration = TransliterationService()
             caption_transcript = transliteration.prepare(
                 state["transcript"],
                 config,
             )
+
             state["caption_scenes"] = transliteration.apply_to_scenes(
                 caption_transcript,
                 state["scenes"],
             )
+
             state["guide"] = generate_guide(
                 caption_transcript,
                 state["style"],
@@ -125,29 +324,52 @@ def run_pipeline(
                 guide_path,
                 audio_analysis=state["audio_analysis"],
             )
-            generated.append(guide_path)
-            checkpoint.save(fingerprint, "guide", generated, data=state)
+
+            generated = _unique_paths([*generated, guide_path])
+
+            checkpoint.save(
+                fingerprint,
+                "guide",
+                generated,
+                data=state,
+            )
+            last_stage = "guide"
+
         guide = state["guide"]
+
+        if not _validate_cached_guide(guide, guide_path):
+            raise ValueError(
+                "Generated editing guide failed consistency validation"
+            )
+
         logger.info("Editing guide saved to %s", guide_path)
+
         if not render:
             return guide
+
         final_path = config.output_directory / f"{voiceover.stem}.{config.output_format}"
+
         if last_stage == "rendered" and final_path.is_file():
             try:
-                FFprobeService().validate(
+                _validate_cached_render(
                     final_path,
-                    require_video=True,
-                    require_audio=True,
-                    expected_duration=float(guide["duration"]),
-                    expected_fps=config.video_fps,
+                    guide,
+                    config,
                 )
+                logger.info("Reusing validated cached render: %s", final_path)
                 return guide
-            except (MediaToolError, ValueError, OSError) as exc:
-                logger.warning("Ignoring invalid cached render and rerendering: %s", exc)
+
+            except (MediaToolError, ValueError, OSError, KeyError, TypeError) as exc:
+                logger.warning(
+                    "Ignoring invalid cached render and rerendering: %s",
+                    exc,
+                )
+
         # External clips and images are permanently disabled.
         renderer = VideoRenderer(
             hyperframes=HyperFramesService(config.hyperframes_command)
         )
+
         renderer.render(
             guide,
             voiceover,
@@ -157,14 +379,55 @@ def run_pipeline(
             effects=sound_effects,
             work_directory=run_temp / "render",
         )
-        generated.append(final_path)
-        generated.append(Path("storage/metadata") / f"{final_path.stem}.json")
-        checkpoint.save(fingerprint, "rendered", generated, data=state)
+
+        generated = _unique_paths(
+            [
+                *generated,
+                final_path,
+                Path("storage/metadata") / f"{final_path.stem}.json",
+            ]
+        )
+
+        checkpoint.save(
+            fingerprint,
+            "rendered",
+            generated,
+            data=state,
+        )
+
         cleanup = CleanupManager()
-        cleanup.remove_processed_voiceover(config, [run_temp / "render/mix.m4a"], run_temp)
-        cleanup.cleanup(config, success=True, run_directory=run_temp)
+
+        try:
+            cleanup.remove_processed_voiceover(
+                config,
+                [run_temp / "render/mix.m4a"],
+                run_temp,
+            )
+        except Exception:
+            logger.exception("Processed voiceover cleanup failed")
+
+        try:
+            cleanup.cleanup(
+                config,
+                success=True,
+                run_directory=run_temp,
+            )
+        except Exception:
+            logger.exception("Temporary-file cleanup failed")
+
         return guide
+
     except Exception as exc:
-        checkpoint.save(fingerprint, "failed", generated, status="failed", error=f"{type(exc).__name__}: {exc}")
+        try:
+            checkpoint.save(
+                fingerprint,
+                "failed",
+                generated,
+                status="failed",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        except Exception:
+            logger.exception("Failed to save failure checkpoint")
+
         logger.exception("Pipeline failed; the last valid checkpoint is retained")
         raise

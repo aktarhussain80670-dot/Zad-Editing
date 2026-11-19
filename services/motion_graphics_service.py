@@ -69,34 +69,17 @@ class MotionGraphicsService:
     def _style_variables(
         style: dict[str, Any] | None,
     ) -> tuple[str, str, str]:
-        """Build validated CSS variables from reference style."""
+        """Return fixed project brand colors; reference colors cannot override them."""
 
-        if not isinstance(style, dict):
-            style = {}
+        accent = "#2453D6"
+        secondary = "#22C55E"
 
-        profile = style.get("style_profile", {})
-        if not isinstance(profile, dict):
-            profile = {}
+        typography = {}
+        if isinstance(style, dict):
+            profile = style.get("style_profile", {})
+            if isinstance(profile, dict):
+                typography = profile.get("typography", {})
 
-        palette = profile.get("palette", [])
-        safe_colors = []
-
-        if isinstance(palette, list):
-            for color in palette[:4]:
-                if isinstance(color, str) and re.fullmatch(
-                    r"hsl\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*\)",
-                    color,
-                ):
-                    safe_colors.append(color)
-
-        accent = safe_colors[0] if safe_colors else "hsl(210, 75%, 55%)"
-        secondary = (
-            safe_colors[1]
-            if len(safe_colors) > 1
-            else "hsl(32, 85%, 58%)"
-        )
-
-        typography = profile.get("typography", {})
         if not isinstance(typography, dict):
             typography = {}
 
@@ -195,8 +178,16 @@ class MotionGraphicsService:
             or "concept_explanation"
         )
 
+        composition = plan.get("composition")
+
+        if isinstance(composition, dict) and composition:
+            return self._render_composition(scene, composition, style)
+
         if category not in self.VALID_CATEGORIES:
-            category = "concept_explanation"
+            raise ValueError(
+                f"Unsupported visual category: {category!r}. "
+                "Provide a supported category or a valid composition."
+            )
 
         items = self._items(scene)
         labels = [self._safe(item, 48) for item in items]

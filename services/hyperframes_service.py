@@ -296,11 +296,138 @@ class HyperFramesService:
             ".concept-node,.abstract-label{font-family:var(--font-label,Arial,sans-serif);}"
         )
 
+
+        background_css = '''
+    .background-grid,
+    .background-grid * {
+      box-sizing: border-box;
+    }
+
+    .background-grid {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      display: block;
+      background: transparent;
+      pointer-events: none;
+    }
+
+    .background-grid svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .background-grid .grid-line {
+      stroke: #e6e6e6;
+      stroke-width: 1;
+    }
+
+    .background-grid .plus-icon {
+      stroke: #b5b5b5;
+      stroke-width: 1.3;
+      stroke-linecap: round;
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: backgroundGridSpinLoop 6s linear infinite;
+    }
+
+    @keyframes backgroundGridSpinLoop {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  '''
+        background_markup = '''<div class="background-grid" aria-hidden="true">
+    <svg id="zadGridSvg" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="zadGridFadeMaskGrad" cx="50%" cy="50%" r="52%" fx="50%" fy="50%">
+          <stop offset="45%" stop-color="white" stop-opacity="1" />
+          <stop offset="88%" stop-color="white" stop-opacity="0.25" />
+          <stop offset="100%" stop-color="white" stop-opacity="0" />
+        </radialGradient>
+
+        <mask id="zadGridFadeMask">
+          <rect width="1080" height="1920" fill="url(#zadGridFadeMaskGrad)" />
+        </mask>
+      </defs>
+
+      <g mask="url(#zadGridFadeMask)" id="zadGridLayer"></g>
+    </svg>
+  </div>'''
+        background_script = '''(() => {
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const backgroundRoot = document.querySelector("#root .background-grid");
+    if (!backgroundRoot) return;
+
+    const gridLayer = backgroundRoot.querySelector("#zadGridLayer");
+    if (!gridLayer) return;
+
+    const width = 1080;
+    const height = 1920;
+    const cellSize = 135;
+
+    for (let x = 0; x <= width; x += cellSize) {
+      const line = document.createElementNS(svgNS, "line");
+      line.setAttribute("x1", x);
+      line.setAttribute("y1", 0);
+      line.setAttribute("x2", x);
+      line.setAttribute("y2", height);
+      line.setAttribute("class", "grid-line");
+      gridLayer.appendChild(line);
+    }
+
+    for (let y = 0; y <= height; y += cellSize) {
+      const line = document.createElementNS(svgNS, "line");
+      line.setAttribute("x1", 0);
+      line.setAttribute("y1", y);
+      line.setAttribute("x2", width);
+      line.setAttribute("y2", y);
+      line.setAttribute("class", "grid-line");
+      gridLayer.appendChild(line);
+    }
+
+    const plusSize = 8;
+
+    for (let x = cellSize; x < width; x += cellSize) {
+      for (let y = cellSize; y < height; y += cellSize) {
+        const plusGroup = document.createElementNS(svgNS, "g");
+        plusGroup.setAttribute("class", "plus-icon");
+
+        const delay = ((x + y) / 400) * -1;
+        plusGroup.style.animationDelay = `${delay}s`;
+
+        const hBar = document.createElementNS(svgNS, "line");
+        hBar.setAttribute("x1", x - plusSize);
+        hBar.setAttribute("y1", y);
+        hBar.setAttribute("x2", x + plusSize);
+        hBar.setAttribute("y2", y);
+
+        const vBar = document.createElementNS(svgNS, "line");
+        vBar.setAttribute("x1", x);
+        vBar.setAttribute("y1", y - plusSize);
+        vBar.setAttribute("x2", x);
+        vBar.setAttribute("y2", y + plusSize);
+
+        plusGroup.appendChild(hBar);
+        plusGroup.appendChild(vBar);
+        gridLayer.appendChild(plusGroup);
+      }
+    }
+
+})();'''
+        background_overrides = ""
         return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width={width},height={height}"><title>Universal Video Editor composition</title>
 <script src="./gsap.min.js"></script>
-<style>*{{box-sizing:border-box}}html,body{{margin:0;width:{width}px;height:{height}px;overflow:hidden;background:#10151b;font-family:Arial,sans-serif}}#root{{position:relative;width:{width}px;height:{height}px;overflow:hidden;background:linear-gradient(145deg,#172a3a,#10151b 55%,#403528)}}{template_css}
-</style></head><body><div id="root" data-composition-id="main" data-start="0" data-duration="{duration}" data-width="{width}" data-height="{height}" data-fps="{fps}">{layer_markup}</div>
-<script>window.__timelines=window.__timelines||{{}};const tl=gsap.timeline({{paused:true}});{timeline}window.__timelines.main=tl;tl.seek(0);</script></body></html>'''
+<style>*{{box-sizing:border-box}}html,body{{margin:0;width:{width}px;height:{height}px;overflow:hidden;background:#fafafa;font-family:Arial,sans-serif}}#root{{position:relative;width:{width}px;height:{height}px;overflow:hidden;background:#fafafa}}{background_css}{background_overrides}{template_css}
+</style></head><body><div id="root" data-composition-id="main" data-start="0" data-duration="{duration}" data-width="{width}" data-height="{height}" data-fps="{fps}">{background_markup}{layer_markup}</div>
+<script>{background_script}</script><script>window.__timelines=window.__timelines||{{}};const tl=gsap.timeline({{paused:true}});{timeline}window.__timelines.main=tl;tl.seek(0);</script></body></html>'''
 
     def create_composition(
         self,
