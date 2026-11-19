@@ -145,3 +145,8 @@ temp/*
 
 # Numbered backup files
 *.bak*
+
+# Local backup files
+*.backup_*
+*.bak
+*.backup
