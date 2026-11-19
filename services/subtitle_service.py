@@ -39,8 +39,11 @@ class SubtitleService:
                     if not text:
                         continue
 
-                    start = float(word["start"])
-                    end = float(word["end"])
+                    try:
+                        start = float(word["start"])
+                        end = float(word["end"])
+                    except (KeyError, TypeError, ValueError, OverflowError):
+                        continue
                     if not math.isfinite(start) or not math.isfinite(end) or end <= start:
                         continue
 
@@ -52,8 +55,11 @@ class SubtitleService:
                 if not text:
                     continue
 
-                start = float(segment["start"])
-                end = float(segment["end"])
+                try:
+                    start = float(segment["start"])
+                    end = float(segment["end"])
+                except (KeyError, TypeError, ValueError, OverflowError):
+                    continue
                 if not math.isfinite(start) or not math.isfinite(end) or end <= start:
                     continue
 

@@ -225,6 +225,14 @@ class HyperFramesService:
             caption = scene.get("caption", {})
             text = str(caption.get("display_text", caption.get("text", ""))).strip()
             if caption.get("enabled") and text:
+                typography = scene.get("typography", {})
+                if not isinstance(typography, dict):
+                    typography = {}
+                highlight_terms = {
+                    str(term).casefold()
+                    for term in typography.get("highlight_terms", [])
+                    if isinstance(term, str) and term.strip()
+                }
                 words = [
                     word
                     for word in all_words
@@ -234,7 +242,7 @@ class HyperFramesService:
                 ]
                 if words:
                     word_markup = " ".join(
-                        f'<span class="caption-word" id="word-{sid}-{i}">{html.escape(str(word.get("display_word", word.get("word", ""))).strip())}</span>'
+                        f'<span class="caption-word{" is-keyword" if str(word.get("word", "")).casefold().strip(".,!?;:") in highlight_terms else ""}" id="word-{sid}-{i}">{html.escape(str(word.get("display_word", word.get("word", ""))).strip())}</span>'
                         for i, word in enumerate(words)
                     )
                 else:
@@ -249,7 +257,7 @@ class HyperFramesService:
                     word_start = max(start, float(word.get("start", start)))
                     word_end = min(end, float(word.get("end", end)))
                     gsap_setup.append(
-                        f' tl.to("#word-{sid}-{i}", {{color:"#ffc36d", scale:1.08, duration:0.08, transformOrigin:"center center"}}, {word_start}); tl.to("#word-{sid}-{i}", {{color:"#ffffff", scale:1, duration:0.08}}, {max(word_start, word_end)});'
+                        f' tl.to("#word-{sid}-{i}", {{color:"#2453D6", scale:1.08, duration:0.08, transformOrigin:"center center"}}, {word_start}); tl.to("#word-{sid}-{i}", {{color:"#000000", scale:1, duration:0.08}}, {max(word_start, word_end)});'
                     )
             graphics_id = f"graphics-{sid}"
             graphics_markup = graphics_service.render_scene(scene, guide.get("style", {}))

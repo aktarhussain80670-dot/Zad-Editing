@@ -3,7 +3,7 @@
     inset: 0;
     overflow: hidden;
     padding: 10% 8% 25%;
-    color: #f8fafc;
+    color: #000;
     background:
         radial-gradient(circle at 80% 22%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 38%),
         linear-gradient(145deg, #182536 0%, #101722 58%, #090e17 100%);
@@ -47,7 +47,7 @@
     position: relative;
     z-index: 2;
     max-width: 92%;
-    color: #fff;
+    color: #000;
     font-size: 58px;
     line-height: 1.08;
     font-weight: 850;
@@ -392,7 +392,7 @@
     justify-content: center;
     border: 2px solid color-mix(in srgb, var(--accent) 65%, white);
     border-radius: 24px;
-    background: linear-gradient(145deg, #ffffff20, #ffffff06);
+    background: #fff;
     overflow-wrap: anywhere;
 }
 
@@ -429,7 +429,7 @@
     padding: 20px;
     border: 1px solid #ffffff30;
     border-radius: 20px;
-    background: #ffffff10;
+    background: #fff;
     font-size: 28px;
     overflow-wrap: anywhere;
 }
@@ -492,7 +492,7 @@
     padding: 30px;
     border: 1px solid #ffffff25;
     border-radius: 24px;
-    background: linear-gradient(145deg, #ffffff12, #ffffff04);
+    background: #fff;
 }
 
 .chart-columns {
@@ -538,6 +538,17 @@
     width: 100%;
 }
 
+.semantic-diagram {
+    width: 100%;
+    max-height: 360px;
+    margin-bottom: 28px;
+}
+
+.semantic-node {
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
 .concept-map .concept-node {
     min-width: 190px;
     min-height: 130px;
@@ -554,7 +565,7 @@
 .abstract-label {
     font-size: 34px;
     font-weight: var(--visual-weight, 800);
-    color: #fff;
+    color: #000;
     overflow-wrap: anywhere;
 }
 

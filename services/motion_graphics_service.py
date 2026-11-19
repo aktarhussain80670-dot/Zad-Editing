@@ -19,6 +19,7 @@ class MotionGraphicsService:
         "data_visualization",
         "animated_chart",
         "concept_explanation",
+        "conceptual_graphic",
     }
 
     @staticmethod
@@ -158,6 +159,26 @@ class MotionGraphicsService:
             f'alt="{alt}" aria-hidden="true">'
         )
 
+    @staticmethod
+    def _relationship_svg(labels: list[str]) -> str:
+        """Create a small scene-specific relationship diagram from narration terms."""
+        count = max(1, min(len(labels), 4))
+        nodes = []
+        for index, label in enumerate(labels[:count]):
+            x = 540 if index == 0 else 180 + ((index - 1) * 240)
+            y = 180 if index == 0 else 430
+            nodes.append(
+                f'<g class="semantic-node" transform="translate({x} {y})">'
+                f'<circle r="54" fill="#FFFFFF" stroke="#2453D6" stroke-width="6"/>'
+                f'<text text-anchor="middle" y="8" fill="#000000" font-size="22">{MotionGraphicsService._safe(label, 18)}</text>'
+                '</g>'
+            )
+        lines = "".join(
+            f'<path d="M540 235 L{x} 375" fill="none" stroke="#2453D6" stroke-width="5" stroke-linecap="round"/>'
+            for x in [180 + (index * 240) for index in range(max(0, count - 1))]
+        )
+        return f'<svg class="semantic-diagram" viewBox="0 0 1080 620" role="img" aria-label="Narration relationship diagram">{lines}{"".join(nodes)}</svg>'
+
     def render_scene(
         self,
         scene: dict[str, Any],
@@ -177,11 +198,6 @@ class MotionGraphicsService:
             or plan.get("visual_category")
             or "concept_explanation"
         )
-
-        composition = plan.get("composition")
-
-        if isinstance(composition, dict) and composition:
-            return self._render_composition(scene, composition, style)
 
         if category not in self.VALID_CATEGORIES:
             raise ValueError(
@@ -257,7 +273,7 @@ class MotionGraphicsService:
                 '</div>'
                 for index, label in enumerate(labels)
             )
-            content = f'<div class="concept-map">{nodes}</div>'
+            content = f'<div class="concept-map">{self._relationship_svg(items)}{nodes}</div>'
 
         accent, secondary, font_weight = self._style_variables(style)
         icon_markup = self._icon_markup(scene)

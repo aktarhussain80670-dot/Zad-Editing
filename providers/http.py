@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +21,19 @@ class ProviderError(RuntimeError):
 def get_json(url: str, headers: dict[str, str], timeout: int = 30, retries: int = 2) -> dict[str, Any]:
     if not url.startswith("https://"):
         raise ProviderError("Provider API requests must use HTTPS")
+    if timeout <= 0 or retries < 0:
+        raise ProviderError("Provider timeout must be positive and retries cannot be negative")
     for attempt in range(retries + 1):
         req = urllib.request.Request(url, headers={"User-Agent": "UniversalVideoEditor/0.1", **headers})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+                content_length = response.headers.get("Content-Length")
+                if content_length and int(content_length) > 10_000_000:
+                    raise ProviderError("Provider response exceeds configured size limit")
+                body = response.read(10_000_001)
+                if len(body) > 10_000_000:
+                    raise ProviderError("Provider response exceeds configured size limit")
+                payload = json.loads(body.decode("utf-8"))
                 if response.status >= 400 or not isinstance(payload, dict):
                     raise ProviderError(f"Invalid provider response (HTTP {response.status})")
                 return payload
@@ -73,9 +82,7 @@ def download_file(
     _check_media_url(url, hosts)
     opener = urllib.request.build_opener(_SafeRedirect(hosts))
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_suffix(destination.suffix + ".part")
-    if temporary.exists():
-        raise FileExistsError(f"Refusing to overwrite an incomplete download: {temporary}")
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.part")
     try:
         with (
             opener.open(

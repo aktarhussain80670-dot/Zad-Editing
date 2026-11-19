@@ -333,6 +333,7 @@ class VoiceoverAnalyzer:
                 not math.isfinite(start)
                 or not math.isfinite(end)
                 or start < 0
+                or start >= duration
                 or end <= start
                 or end > duration + 0.5
                 or start < previous_segment_end - 0.5

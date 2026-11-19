@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from config.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 class MediaSearchService:
@@ -19,4 +22,6 @@ class MediaSearchService:
         orientation: str = "portrait",
     ) -> list[dict[str, Any]]:
         """Return no external media results by production policy."""
+        if scene.get("visual_required") and not self.settings.pexels_api_key:
+            logger.warning("External media requested without a provider key; using generated graphics")
         return []

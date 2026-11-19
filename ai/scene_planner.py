@@ -346,11 +346,11 @@ def _visual_category(text: str) -> str:
     if has_year:
         return "timeline"
 
-    if has_numeric_data_context:
-        return "data_visualization"
-
     if has_trend and has_numeric_data_context:
         return "animated_chart"
+
+    if has_numeric_data_context:
+        return "data_visualization"
 
     if has_question or has_cause or any(
         term in normalized.split()
@@ -592,6 +592,24 @@ def _build_visual_plan(
             "meaning_must_be_preserved": True,
             "relationships_must_be_preserved": True,
         },
+
+        # Keep primary narration visuals and supporting visual beats separate
+        # so renderers can evolve without losing the editorial intent.
+        "a_roll": {
+            "enabled": True,
+            "source": "original_narration_led_composition",
+            "role": "primary",
+            "subject": text,
+        },
+        "b_roll": [
+            {
+                "enabled": True,
+                "source": "generated_supporting_graphics",
+                "role": "supporting",
+                "relation": "reinforce_narration",
+                "elements": highlights,
+            }
+        ],
 
         "generation_constraints": {
             "use_external_video": False,

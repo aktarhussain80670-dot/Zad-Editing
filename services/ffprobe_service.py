@@ -75,11 +75,17 @@ class FFprobeService:
         )
 
         format_duration = payload.get("format", {}).get("duration")
-        stream_durations = [
-            float(stream["duration"])
-            for stream in streams
-            if stream.get("duration") not in (None, "", "N/A")
-        ]
+        stream_durations = []
+        for stream in streams:
+            value = stream.get("duration")
+            if value in (None, "", "N/A"):
+                continue
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(parsed) and parsed > 0:
+                stream_durations.append(parsed)
 
         try:
             duration = (

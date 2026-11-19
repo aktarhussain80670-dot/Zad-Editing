@@ -5,16 +5,13 @@
     bottom: 10%;
     z-index: 20;
     text-align: center;
-    color: #fff;
+    color: #000;
     font-size: 46px;
     line-height: 1.18;
     font-weight: 850;
     letter-spacing: -.015em;
-    text-shadow: 0 3px 12px #000, 0 0 28px #000;
-    border: 1px solid #ffffff25;
-    border-radius: 18px;
-    padding: 18px 22px;
-    background: linear-gradient(90deg,#080d16c9,#101722dc,#080d16c9);
+    text-shadow: 0 2px 8px #ffffff;
+    padding: 8px 0;
     overflow-wrap: anywhere;
 }
 
@@ -22,4 +19,9 @@
     display: inline-block;
     margin-right: .16em;
     transform-origin: center center;
+}
+
+.caption-word.is-keyword,
+.caption-word.keyword {
+    color: #2453D6;
 }

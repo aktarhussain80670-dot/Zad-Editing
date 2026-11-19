@@ -190,7 +190,7 @@ def validate_timeline(guide: dict[str, Any]) -> None:
         start = _number(scene.get("start"), "Scene start")
         end = _number(scene.get("end"), "Scene end")
 
-        if start != cursor:
+        if abs(start - cursor) > TIME_TOLERANCE:
             raise ValueError(
                 f"Scene {expected_id} has a gap or overlap"
             )
